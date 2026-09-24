@@ -753,7 +753,9 @@
 				<Size x="180"/>
 				<Anchors>
 					<Anchor point="TOPLEFT"><Offset><AbsDimension x="20" y="-95"/></Offset></Anchor>
-					<Anchor point="BOTTOM"><Offset><AbsDimension y="30"/></Offset></Anchor>
+					<!-- BOTTOMLEFT, not BOTTOM: with TOPLEFT, a BOTTOM anchor overrides the
+					     width and stretches the list over the Delete/Edit/Rename buttons. -->
+					<Anchor point="BOTTOMLEFT"><Offset><AbsDimension x="20" y="30"/></Offset></Anchor>
 				</Anchors>
 
 				<Scripts>
@@ -840,9 +842,21 @@
 	</Button>
 
 
-	<Frame name="Atr_ShpList_Edit_Frame" frameStrata="DIALOG" enableMouse="true" hidden="true">
+	<Frame name="Atr_ShpList_Edit_Frame" frameStrata="DIALOG" enableMouse="true" movable="true" clampedToScreen="true" hidden="true">
 		<Size x="430" y="415"/>
 		<Anchors><Anchor point="CENTER"/></Anchors>
+
+		<Scripts>
+			<OnLoad>
+				self:RegisterForDrag("LeftButton");
+			</OnLoad>
+			<OnDragStart>
+				self:StartMoving();
+			</OnDragStart>
+			<OnDragStop>
+				self:StopMovingOrSizing();
+			</OnDragStop>
+		</Scripts>
 	
 		<Backdrop bgFile="Interface\MERCHANTFRAME\UI-BuyBack-TopLeft" edgeFile="Interface\DialogFrame\UI-DialogBox-Border">
 			<BackgroundInsets><AbsInset left="2" right="0" top="2" bottom="2"/></BackgroundInsets>
@@ -863,6 +877,10 @@
 		</Layers>
 		
 		<Frames>
+
+			<Button inherits="UIPanelCloseButton">
+				<Anchors><Anchor point="TOPRIGHT"><Offset x="-6" y="-6"/></Anchor></Anchors>
+			</Button>
 		
 			<ScrollFrame name="$parentScrollFrame" inherits="UIPanelScrollFrameTemplate">
 				<Size x="180"/>	
