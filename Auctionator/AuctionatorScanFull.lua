@@ -317,6 +317,9 @@ function Atr_FullScanUpdateDB()
 			if ((qx < AUCTIONATOR_SCAN_MINLEVEL) and gAtr_ScanDB[name]) then
 				numRemoved[qx] = numRemoved[qx] + 1;
 				gAtr_ScanDB[name] = nil;
+				if (gAtr_MeanDB) then
+					gAtr_MeanDB[name] = nil;
+				end
 			end
 			
 			if (qx >= AUCTIONATOR_SCAN_MINLEVEL) then
@@ -328,6 +331,7 @@ function Atr_FullScanUpdateDB()
 				end
 
 				Atr_UpdateScanDBprice (name, newprice);
+				Atr_AddFullScanMedianPrice (name, newprice);
 			end
 		end
 	end

@@ -822,6 +822,7 @@ function Atr_OnClick_ClearHistory(self)
 
 		gAtr_ScanDB = nil;
 		AUCTIONATOR_PRICE_DATABASE = nil;
+		AUCTIONATOR_MEAN_PRICE_DATABASE = nil;
 		Atr_InitScanDB();
 		
 		return "Pricing history cleared."
