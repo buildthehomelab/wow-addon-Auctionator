@@ -6,6 +6,7 @@
 
 local addonName, addonTable = ...; 
 local zc = {};
+local _
 
 addonTable.zc = zc;
 
@@ -381,7 +382,7 @@ end
 
 -----------------------------------------
 
-function zc.PrintTable (t, indent)
+function zc.PrintTable (t, indent, norecurse)
 
 	if (not indent) then
 		indent = 0;
@@ -394,11 +395,18 @@ function zc.PrintTable (t, indent)
 	end
 
 	zc.msg ("-------");
+
+	if (t == nil) then
+		zc.msg (padding, "<nil>");
+		return;
+	end
 	
 	for n, v in pairs (t) do
 		if (type(v) == "table") then
 			zc.msg (padding..n, "TABLE");
-			zc.PrintTable(v, indent+1);
+			if (not norecurse) then
+				zc.PrintTable(v, indent+1);
+			end
 		elseif (type(v) == "userdata") then
 			zc.msg (padding..n, "userdata");
 		else
@@ -410,18 +418,125 @@ end
 
 -----------------------------------------
 
+-- function zc.IsBattlePetLink (itemLink)
+
+-- --zc.msg (zc.printableLink (itemLink));
+	-- return zc.StringContains (itemLink, "Hbattlepet:");
+-- end
+
+-----------------------------------------
+
+-- function zc.ParseBattlePetLink (itemLink)
+
+	-- local _, speciesID, level, breedQuality, maxHealth, power, speed, other = strsplit(":", itemLink)
+
+	-- --local name = string.gsub(string.gsub(itemLink, "^(.*)%[", ""), "%](.*)$", "");
+
+	-- local battlePetID, name, c, d, e = strsplit ("|", other);
+	
+	-- --zc.msg ( "other:", zc.printableLink(other), "bpid:", battlePetID, "name: ", name, "C", c, "d", d, "e", e)
+-- --zc.msg ("name: ", name);
+
+	-- name = string.sub (name, 2, string.len(name))
+
+	-- name = zc.TrimBrackets (name);
+	
+	-- return tonumber(speciesID), tonumber(level), tonumber(breedQuality), tonumber(maxHealth), tonumber(power), tonumber(speed), battlePetID, name
+	
+-- end
+
+-----------------------------------------
+
 function zc.ItemIDfromLink (itemLink)
 
 	if (itemLink == nil) then
 		return 0,0,0;
 	end
 	
-	local found, _, itemString = string.find(itemLink, "^|c%x+|H(.+)|h%[.*%]")
-	local _, itemId, _, _, _, _, _, suffixId, uniqueId = strsplit(":", itemString)
+	-- if (zc.IsBattlePetLink (itemLink)) then
+		-- local speciesID, level, breedQuality, maxHealth, power, speed, battlePetID, name = zc.ParseBattlePetLink(itemLink)
+		
+		-- return "BP_"..tostring(speciesID), breedQuality
+	
+	-- else
+	
+		local found, _, itemString = string.find(itemLink, "^|c%x+|H(.+)|h%[.*%]")
+		local _, itemId, _, _, _, _, _, suffixId, uniqueId = strsplit(":", itemString)
 
-	return itemId, suffixId, uniqueId;
+		return itemId, suffixId, uniqueId;
+	-- end
+end
+
+-----------------------------------------
+
+function zc.ItemNamefromLink (itemLink)
+
+	if (itemLink == nil) then
+		return "", false;
+	end
+	
+	-- if (zc.IsBattlePetLink (itemLink)) then
+		-- local speciesID, level, breedQuality, maxHealth, power, speed, battlePetID, name = zc.ParseBattlePetLink(itemLink)
+		
+		-- return name, true;
+	-- else
+		local name = GetItemInfo (itemLink)
+		return name, false;
+	-- end
+	
+	-- return "", false;
+end
+
+-----------------------------------------
+
+function zc.ItemIDStrfromLink (itemLink)
+
+	local itemID, suffix = zc.ItemIDfromLink (itemLink);
+
+	if (suffix == 0 or suffix == "0" or suffix == nil) then
+		return tostring (itemID)
+	end
+	
+	return itemID..":"..suffix
 
 end
+
+-----------------------------------------
+
+function zc.LinkFromItemID (itemID, suffixID)		-- only works if item is already in memory
+
+	if (suffixID == nil) then
+		suffixID = 0;
+	end
+
+	local itemString = "item:"..itemID..":0:0:0:0:0:"..suffixID..":0";
+	
+	local _, itemLink = GetItemInfo(itemString);
+	
+	return itemLink
+end
+
+-----------------------------------------
+
+function zc.PullItemIntoMemory (itemID, suffixID)
+
+	if (suffixID == nil) then
+		suffixID = 0;
+	end
+
+	local itemString = "item:"..itemID..":0:0:0:0:0:"..suffixID..":0";
+	
+	local _, itemLink = GetItemInfo(itemString);
+	
+	if (itemLink == nil) then
+		AtrScanningTooltip2:SetHyperlink(itemString);
+		_, itemLink = GetItemInfo(itemString);
+--		zc.md ("pulling into memory:  ", itemString);
+	end
+
+	return itemLink;
+end
+
 
 -----------------------------------------
 
@@ -451,6 +566,17 @@ function zc.NumToBool (n)
 	end
 
 	return true;
+end
+
+-----------------------------------------
+
+function zc.Negate (b)	-- handles false or nil
+
+	if (b) then	
+		return false
+	end
+		
+	return true
 end
 
 -----------------------------------------
@@ -509,9 +635,16 @@ end
 
 -----------------------------------------
 
-function zc.msg_atr (...)
+function zc.msg_anm (...)
 
-	zc.msg_yellow ("|cff00ffff<Auctionator>|r", ...);
+	zc.msg_yellow ("|cff00ffff<"..addonName..">|r", ...);
+end
+
+-----------------------------------------
+
+function zc.msg_badErr (...)
+
+	zc.msg_red ("|cff00ffff<"..addonName..">|r", ...);
 end
 
 
@@ -545,10 +678,26 @@ function zc.md (...)
 
 		local funcnames = zc.printstack ( { silent=true } );
 
-		local fname = string.lower (funcnames[2]);
+		local fname = "???"
+		local aname = "???"
+		
+--		if (funcnames[2]) then
+--			fname = string.lower (funcnames[2]);
+--		else
+		
+		if (funcnames[1]) then
+			fname = string.lower (funcnames[1]);
+		end
 
-		if (zc.StringStartsWith (fname, "atr_")) then
+		if (fname == "md" and funcnames[2]) then
+			fname = string.lower (funcnames[2]);
+		end
+		
+		if (zc.StringStartsWith (fname, "oym_", "atr_", "eqx_")) then
+			aname = fname:sub (0,4)
 			fname = fname:sub (5);
+		else
+			aname = addonName:sub(0,3)..":";
 		end
 
 		local color = "ffffff";
@@ -580,7 +729,7 @@ function zc.md (...)
 			color = string.format ("%02x%02x%02x", r, g, b);
 		end
 		
-		zc.msg ("|cff00ffff<".."|cff"..color..fname.."|cff00ffff>|r", ...);
+		zc.msg ("|cffff33ff<"..aname.."|cff"..color..fname.."|cff00ffff>|r", ...);
 	end
 end
 
@@ -693,7 +842,7 @@ local coppericon	= "|TInterface\\MoneyFrame\\UI-CopperIcon:12:12:4:0|t"
 function zc.priceToMoneyString (val, noZeroCoppers)
 
 	local gold, silver, copper  = zc.val2gsc(val);
-
+	
 	local st = "";
 
 	if (gold ~= 0) then
@@ -741,21 +890,27 @@ end
 
 -----------------------------------------
 
-function zc.StringContains (s, sub)
-	if (sub == nil or sub == "") then
+function zc.StringContains (s, sub, ...)
+	if (s == nil or sub == nil or sub == "") then
 		return false;
 	end
 
 	local start, stop = string.find (string.lower(s), string.lower(sub), 1, true);
 
-	return (start ~= nil);
+	local found = (start ~= nil);
+	
+	if (found or select("#", ...) == 0) then
+		return found;
+	end
+
+	return zc.StringContains (s, ...);
 end
 
 -----------------------------------------
 
 function zc.StringEndsWith (s, sub)
 
-	if (sub == nil or sub == "") then
+	if (s == nil or sub == nil or sub == "") then
 		return false;
 	end
 
@@ -773,7 +928,7 @@ end
 
 -----------------------------------------
 
-function zc.StringStartsWith (s, sub)
+function zc.StringStartsWith (s, sub, ...)
 
 	if (s == nil or sub == nil or sub == "") then
 		return false;
@@ -781,29 +936,81 @@ function zc.StringStartsWith (s, sub)
 
 	local sublen = string.len (sub);
 
-	if (string.len (s) < sublen) then
-		return false;
+	local found = false;
+	
+	if (string.len (s) >= sublen) then
+		found = (string.lower (string.sub(s, 1, sublen)) == string.lower(sub));
 	end
 
-	return (string.lower (string.sub(s, 1, sublen)) == string.lower(sub));
+	if (found or select("#", ...) == 0) then
+		return found;
+	end
+
+	return zc.StringStartsWith (s, ...);
 
 end
 
 -----------------------------------------
 
-function zc.CopyDeep (src)
+function zc.TrimQuotes (s)
 
-	local result = {};
-
-	for n, v in pairs (src) do
-		if (type(v) == "table") then
-			result[n] = zc.CopyDeep(v);
-		else
-			result[n] = v;
+	local start = 1
+	local last  = string.len(s)
+	
+	if (last > 1) then
+		if (s:sub(1,1) == "\"") then
+			start = 2
+		end
+		if (s:sub(last,last) == "\"") then
+			last = last-1
 		end
 	end
 
-	return result;
+	return string.sub (s, start, last)
+
+end
+
+-----------------------------------------
+
+function zc.TrimBrackets (s)
+
+	local start = 1
+	local last  = string.len(s)
+	
+	if (last > 1) then
+		if (s:sub(1,1) == "[") then
+			start = 2
+		end
+		if (s:sub(last,last) == "]") then
+			last = last-1
+		end
+	end
+
+	return string.sub (s, start, last)
+
+end
+
+-----------------------------------------
+
+function zc.ClearTable (t)
+
+	for n, v in pairs (t) do
+		t[n] = nil
+	end
+end
+
+-----------------------------------------
+
+function zc.CopyDeep (dest, src)
+
+	for n, v in pairs (src) do
+		if (type(v) == "table") then
+			dest[n] = {};
+			zc.CopyDeep(dest[n], v);
+		else
+			dest[n] = v;
+		end
+	end
 
 end
 
@@ -828,7 +1035,7 @@ function zc.printmem ()
 	
 	UpdateAddOnMemoryUsage();
 	local mem = GetAddOnMemoryUsage("Auctionator");
-	zc.msg_atr (math.floor(mem).." KB  (total LUA: "..cmem.." KB)");
+	zc.msg_anm (math.floor(mem).." KB  (total LUA: "..cmem.." KB)");
 end
 
 -----------------------------------------
@@ -848,50 +1055,59 @@ function zc.printstack (options)
 
 	local s = debugstack (2);
 
-	local lines = { strsplit("\n", s) };
+	if (s == nil) then
+		s = debugstack (1);
+	end
+	
+	if (type(s) == 'string') then
+		local lines = { strsplit("\n", s) };
 
-	local x = 1;
+		if (lines ~= nil) then
+			local x = 1;
+			local n;
+			local v;
+			for n = 1,#lines do
+				v = lines[n];
+				
+				local filename = nil;
+				local funcname = nil;
 
-	local v;
-	for a,v in pairs(lines) do
+				local a,b = string.find (v, "\\[^\\]*:");
 
-		local filename = nil;
-		local funcname = nil;
-
-		local a,b = string.find (v, "\\[^\\]*:");
-
-		if (a) then
-			filename = string.sub (v,a+1,b-1);
-			filename = string.gsub (filename, "\.lua", "");
-		end
-
-		local a,b = string.find (v, "in function `.*\'");
-		if (a) then
-			funcname = string.sub (v,a+13,b-1);
-			table.insert (funcnames, funcname);
-		end
-
-		if (options.verbose) then
-			if (filename ~= nil and funcname ~= nil) then
-				local colwid = math.floor((100 - string.len(funcname)) / 2);
-				local fs = "%-"..colwid.."s (%s)";
-				zc.msg_color (.5, 1, .5, string.format (fs, funcname, filename));
-			else
-				zc.msg (v);
-			end
-		elseif (not options.silent) then
-			if (funcname) then
-				if (x == 2) then
-					cstr = cstr.." > |cFFFFaa88"..funcname;
-				else
-					cstr = cstr.." > "..funcname;
+				if (a) then
+					filename = string.sub (v,a+1,b-1);
+					filename = string.gsub (filename, "\.lua", "");
 				end
-				x = x + 1;
+
+				local a,b = string.find (v, "in function `.*\'");
+				if (a) then
+					funcname = string.sub (v,a+13,b-1);
+					table.insert (funcnames, funcname);
+				end
+
+				if (Atr_IsDev and options.verbose) then
+					if (filename ~= nil and funcname ~= nil) then
+						local colwid = math.floor((100 - string.len(funcname)) / 2);
+						local fs = "%-"..colwid.."s (%s)";
+						zc.msg_color (.5, 1, .5, string.format (fs, funcname, filename));
+					else
+						zc.msg (v);
+					end
+				elseif (not options.silent) then
+					if (funcname) then
+						if (x == 2) then
+							cstr = cstr.." > |cFFFFaa88"..funcname;
+						else
+							cstr = cstr.." > "..funcname;
+						end
+						x = x + 1;
+					end
+				end
 			end
 		end
 	end
 
-	if (not options.verbose and not options.silent) then
+	if (Atr_IsDev and not options.verbose and not options.silent) then
 		zc.msg (cstr);
 	end
 

@@ -1,7 +1,8 @@
 
 local addonName, addonTable = ...; 
 local zc = addonTable.zc;
-
+local zz = zc.md;
+local _
 
 -----------------------------------------
 
@@ -42,27 +43,32 @@ end
 
 ------------------------------------------------
 
-function Atr_BuildHints (itemName)
+function Atr_BuildHints (itemName, itemLink)
 
 	local results = {};
-
-	local itemLink = Atr_GetItemLink (itemName);
 
 	if (itemLink == nil and itemName == nil) then
 		return results;
 	end
 
-	-- Auctionator Full Scan
+	-- The Undermine Journal
 	
-	if (itemName ~= nil and gAtr_ScanDB[itemName] ~= nil) then
-		Atr_AppendHint (results, gAtr_ScanDB[itemName], ZT("Auctionator scan data"));
-	end
+	if (TUJMarketInfo) then
+	
+		local id = zc.ItemIDfromLink (itemLink);
 
-	-- most recent historical price
-	
-	local price = Atr_GetMostRecentSale(itemName);
-	if (price ~= nil) then
-		Atr_AppendHint (results, price, ZT("your most recent posting"));
+		local tujData = {}
+		TUJMarketInfo (tonumber(id), tujData)
+
+		local stddevRaw = tujData['marketstddev']
+		
+		local stddev = "???"
+		if (stddevRaw) then
+			stddev = zc.priceToString (stddevRaw)
+		end
+		
+		Atr_AppendHint (results, tujData['marketmedian'],  ZT("UnderMine Journal (median)"));
+		Atr_AppendHint (results, tujData['marketaverage'], ZT("UnderMine Journal (average) standard deviation "..stddev));
 	end
 
 	-- Wowecon
@@ -121,77 +127,6 @@ end
 
 -----------------------------------------
 
-function Atr_ShowHints ()
-
-	Atr_Col1_Heading:Hide();
-	Atr_Col3_Heading:Hide();
-	Atr_Col4_Heading:Hide();
-
-	Atr_Col3_Heading:SetText (ZT("Source"));
-
-	local currentPane = Atr_GetCurrentPane();
-
-	currentPane.hints = Atr_BuildHints (currentPane.activeScan.itemName);
-	
-	local numrows = currentPane.hints and #currentPane.hints or 0;
-
-	if (numrows > 0) then
-		Atr_Col1_Heading:Show();
-		Atr_Col3_Heading:Show();
-	end
-
-	local line;							-- 1 through 12 of our window to scroll
-	local dataOffset;					-- an index into our data calculated from the scroll offset
-
-	FauxScrollFrame_Update (AuctionatorScrollFrame, numrows, 12, 16);
-
-	for line = 1,12 do
-
-		dataOffset = line + FauxScrollFrame_GetOffset (AuctionatorScrollFrame);
-
-		local lineEntry = _G["AuctionatorEntry"..line];
-
-		lineEntry:SetID(dataOffset);
-
-		if (dataOffset <= numrows and currentPane.hints[dataOffset]) then
-
-			local data = currentPane.hints[dataOffset];
-
-			local lineEntry_item_tag = "AuctionatorEntry"..line.."_PerItem_Price";
-
-			local lineEntry_item		= _G[lineEntry_item_tag];
-			local lineEntry_itemtext	= _G["AuctionatorEntry"..line.."_PerItem_Text"];
-			local lineEntry_text		= _G["AuctionatorEntry"..line.."_EntryText"];
-			local lineEntry_stack		= _G["AuctionatorEntry"..line.."_StackPrice"];
-
-			lineEntry_item:Show();
-			lineEntry_itemtext:Hide();
-			lineEntry_stack:SetText	("");
-
-			Atr_SetMFcolor (lineEntry_item_tag, true);
-
-			MoneyFrame_Update (lineEntry_item_tag, zc.round(data.price) );
-
-			local text = data.text;
-			if (data.volume) then
-				text = text.." ("..ZT("trade volume")..": "..data.volume..")";
-			end
-			
-			lineEntry_text:SetText (text);
-			lineEntry_text:SetTextColor (0.8, 0.8, 1.0);
-
-			lineEntry:Show();
-		else
-			lineEntry:Hide();
-		end
-	end
-
-	Atr_HighlightEntry (currentPane.hintsIndex);
-end
-
-
------------------------------------------
-
 function Atr_SetMFcolor (frameName, blue)
 
 	local goldButton   = _G[frameName.."GoldButton"];
@@ -227,33 +162,14 @@ function Atr_GetAuctionPrice (item)  -- itemName or itemID
 		return nil;
 	end
 
-	if (gAtr_ScanDB and gAtr_ScanDB[itemName]) then
-		return gAtr_ScanDB[itemName];
+	if (gAtr_ScanDB and type (gAtr_ScanDB) ~= "table") then
+		zc.msg_badErr ("Scanning history database appears to be corrupt")
+		zc.msg_badErr ("gAtr_ScanDB:", gAtr_ScanDB)
+		return nil
 	end
 	
-	return Atr_GetMostRecentSale (itemName);
-end	
-
------------------------------------------
-
-function Atr_GetMeanPrice (item)  -- itemName or itemID
-
-	local itemName;
-	
-	if (type (item) == "number") then
-		itemName = GetItemInfo (item);
-	else
-		itemName = item;
-	end
-
-	if (itemName == nil) then
-		return nil;
-	end
-
-	if (gAtr_MeanDB and gAtr_MeanDB[itemName] and #gAtr_MeanDB[itemName] > 0) then
-        local median = nil
-        if #gAtr_MeanDB[itemName] %2 == 0 then median = (gAtr_MeanDB[itemName][#gAtr_MeanDB[itemName]/2] + gAtr_MeanDB[itemName][#gAtr_MeanDB[itemName]/2+1]) / 2 else median = gAtr_MeanDB[itemName][math.ceil(#gAtr_MeanDB[itemName]/2)] end
-        return math.floor(median)
+	if ((type(gAtr_ScanDB) == "table") and gAtr_ScanDB[itemName] and gAtr_ScanDB[itemName].mr) then
+		return gAtr_ScanDB[itemName].mr;
 	end
 	
 	return nil;
@@ -405,6 +321,7 @@ engDEnames [LESSER_COSMIC]		= "Lesser Cosmic Essence";
 engDEnames [ABYSS_CRYSTAL]		= "Abyss Crystal";
 
 
+
 local dustsAndEssences = {};
 
 tinsert (dustsAndEssences, LESSER_MAGIC)
@@ -461,11 +378,13 @@ local DUST_CACHE_WAITING_ON_PREV = 1;
 
 local dustCacheState = DUST_CACHE_READY_FOR_NEXT;
 
+local dustCacheNotFound = 0;
+local dustCacheFound = 0;
 -----------------------------------------
 
-function Atr_GetNextDustIntoCache()		-- make sure all the dusts and essences are in the local cache
-										-- only needed after a major patch and a cache wipe
-	if (gAtr_dustCacheIndex == 0) then
+function Atr_GetNextDustIntoCache()		-- make sure all the dusts and essences are in the RAM cache
+										
+	if (gAtr_dustCacheIndex == 0 or AtrScanningTooltip == nil) then
 		return;
 	end
 
@@ -474,22 +393,23 @@ function Atr_GetNextDustIntoCache()		-- make sure all the dusts and essences are
 	
 	local itemName, itemLink = GetItemInfo(itemString);
 	
-	zc.md (itemString, itemName, itemLink, dustCacheState, gAtr_dustCacheIndex);
-
 	if (itemLink == nil and dustCacheState == DUST_CACHE_READY_FOR_NEXT) then
 		dustCacheState = DUST_CACHE_WAITING_ON_PREV;
 		AtrScanningTooltip:SetHyperlink(itemString);
 		local _, link = GetItemInfo(itemString);
---		zc.md ("pulling "..itemString.." into the local cache   ", itemLink, link, dustCacheState);
+--		zc.md ("pulling "..itemString.." into the local cache   ", dustCacheState);
+		dustCacheNotFound = dustCacheNotFound + 1;
 	end
 
 	if (itemLink) then
---		zc.md (itemLink.." is in local cache");
+--		zc.md (itemLink.." is in RAM cache");
+		dustCacheFound = dustCacheFound + 1;
 		dustCacheState = DUST_CACHE_READY_FOR_NEXT;
 		gAtr_dustCacheIndex = gAtr_dustCacheIndex + 1;
 		
 		if (gAtr_dustCacheIndex > #dustsAndEssences) then
 			gAtr_dustCacheIndex = 0;		-- finished
+--			zc.md ("num items pulled into memory: ", dustCacheNotFound, "out of", dustCacheFound);
 		end
 	end
 end
@@ -520,6 +440,11 @@ function Atr_GetAuctionPriceDE (itemID)  -- same as Atr_GetAuctionPrice but unde
 
 	local lesserPrice;
 	local greaterPrice;
+	
+	if (itemID == LESSER_CEL) then
+		lesserPrice  = Atr_GetAuctionPrice (Atr_GetDEitemName (LESSER_CEL));
+		greaterPrice = Atr_GetAuctionPrice (Atr_GetDEitemName (GREATER_CEL));
+	end
 	
 	if (itemID == LESSER_COSMIC) then
 		lesserPrice  = Atr_GetAuctionPrice (Atr_GetDEitemName (LESSER_COSMIC));
@@ -586,10 +511,10 @@ end
 
 -----------------------------------------
 
-function Atr_InitDETable()		-- based on table at wowwiki.com/Disenchanting_tables
+function Atr_InitDETable()
 
 
-	-- UNCOMMON ARMOR
+	-- UNCOMMON (GREEN) ARMOR
 
 	deTable[deKey(ARMOR, UNCOMMON)] = {};
 	
@@ -613,8 +538,7 @@ function Atr_InitDETable()		-- based on table at wowwiki.com/Disenchanting_table
 	DEtableInsert (t, {121, 151,	75, {1,3}, INFINITE_DUST,	22, {1,2}, LESSER_COSMIC,	3, 1, SMALL_DREAM});
 	DEtableInsert (t, {152, 200,	75, {4,7}, INFINITE_DUST,	22, {1,2}, GREATER_COSMIC,	3, 1, DREAM_SHARD});
 
-
-	-- UNCOMMON WEAPONS
+	-- UNCOMMON (GREEN) WEAPONS
 
 	deTable[deKey(WEAPON, UNCOMMON)] = {};
 	
@@ -635,8 +559,8 @@ function Atr_InitDETable()		-- based on table at wowwiki.com/Disenchanting_table
 	DEtableInsert (t, {100, 120,	22, {2,5}, ARCANE_DUST,		75, {1,2}, GREATER_PLANAR,	3, 1, LARGE_PRISMATIC});
 	DEtableInsert (t, {121, 151,	22, {1,3}, INFINITE_DUST,	75, {1,2}, LESSER_COSMIC,	3, 1, SMALL_DREAM});
 	DEtableInsert (t, {152, 200,	22, {4,7}, INFINITE_DUST,	75, {1,2}, GREATER_COSMIC,	3, 1, DREAM_SHARD});
-	
-	-- RARE ITEMS
+
+	-- RARE (BLUE) ARMOR
 	
 	deTable[deKey(ARMOR, RARE)] = {};
 	
@@ -653,10 +577,26 @@ function Atr_InitDETable()		-- based on table at wowwiki.com/Disenchanting_table
 	DEtableInsert (t, {66, 99,		99.5, 1, SMALL_PRISMATIC,		0.5, 1, NEXUS_CRYSTAL});
 	DEtableInsert (t, {100, 120,	99.5, 1, LARGE_PRISMATIC,		0.5, 1, VOID_CRYSTAL});
 	DEtableInsert (t, {121, 164,	99.5, 1, SMALL_DREAM,			0.5, 1, ABYSS_CRYSTAL});
-	DEtableInsert (t, {165, 999,	99.5, 1, DREAM_SHARD,			0.5, 1, ABYSS_CRYSTAL});
+	DEtableInsert (t, {165, 280,	99.5, 1, DREAM_SHARD,			0.5, 1, ABYSS_CRYSTAL});
+  
+	-- RARE (BLUE) WEAPON
+	
+	deTable[deKey(WEAPON, RARE)] = {};
+	
+	t = deTable[deKey(WEAPON, RARE)];
 
-	deTable[deKey(WEAPON, RARE)] = deTable[deKey(ARMOR, RARE)];
-
+	DEtableInsert (t, {11, 25,		100, 1, SMALL_GLIMMERING});
+	DEtableInsert (t, {26, 30,		100, 1, LARGE_GLIMMERING});
+	DEtableInsert (t, {31, 35,		100, 1, SMALL_GLOWING});
+	DEtableInsert (t, {36, 40,		100, 1, LARGE_GLOWING});
+	DEtableInsert (t, {41, 45,		100, 1, SMALL_RADIANT});
+	DEtableInsert (t, {46, 50,		100, 1, LARGE_RADIANT});
+	DEtableInsert (t, {51, 55,		100, 1, SMALL_BRILLIANT});
+	DEtableInsert (t, {56, 65,		99.5, 1, LARGE_BRILLIANT,		0.5, 1, NEXUS_CRYSTAL});
+	DEtableInsert (t, {66, 99,		99.5, 1, SMALL_PRISMATIC,		0.5, 1, NEXUS_CRYSTAL});
+	DEtableInsert (t, {100, 120,	99.5, 1, LARGE_PRISMATIC,		0.5, 1, VOID_CRYSTAL});
+	DEtableInsert (t, {121, 164,	99.5, 1, SMALL_DREAM,			0.5, 1, ABYSS_CRYSTAL});
+	DEtableInsert (t, {165, 280,	99.5, 1, DREAM_SHARD,			0.5, 1, ABYSS_CRYSTAL});
 
 	-- EPIC ITEMS
 	
@@ -671,10 +611,10 @@ function Atr_InitDETable()		-- based on table at wowwiki.com/Disenchanting_table
 --	DEtableInsert (t, {61, 80,  FILLED IN BELOW
 	DEtableInsert (t, {95, 100,		100, {1,2}, VOID_CRYSTAL});
 	DEtableInsert (t, {105, 164,	33.3, 1, VOID_CRYSTAL,	66.6, 2, VOID_CRYSTAL});
-	DEtableInsert (t, {165, 200,	100, 1, ABYSS_CRYSTAL});
-	DEtableInsert (t, {200, 999,	100, 1, ABYSS_CRYSTAL});
-
-	deTable[deKey(WEAPON, EPIC)] = zc.CopyDeep (deTable[deKey(ARMOR, EPIC)]);	-- copy it this time because of differences
+	DEtableInsert (t, {165, 280,	100, 1, ABYSS_CRYSTAL});
+  
+	deTable[deKey(WEAPON, EPIC)] = {};
+	zc.CopyDeep (deTable[deKey(WEAPON, EPIC)], deTable[deKey(ARMOR, EPIC)]);	-- copy it this time because of differences
 
 	DEtableInsert (deTable[deKey(ARMOR,  EPIC)], {61, 80,	50,   1, NEXUS_CRYSTAL, 	50,   2, NEXUS_CRYSTAL});
 	DEtableInsert (deTable[deKey(WEAPON, EPIC)], {61, 80,	33.3, 1, NEXUS_CRYSTAL, 	66.6, 2, NEXUS_CRYSTAL});
@@ -706,7 +646,7 @@ end
 
 -----------------------------------------
 
-local function Atr_AddDEDetailsToTip (tip, itemType, itemRarity, itemLevel, DEreqLevel)
+function Atr_AddDEDetailsToTip (tip, itemType, itemRarity, itemLevel)
 
 	local ta = Atr_FindDEentry (itemType, itemRarity, itemLevel);
 
@@ -720,11 +660,12 @@ local function Atr_AddDEDetailsToTip (tip, itemType, itemRarity, itemLevel, DEre
 				deitem = "???";
 			end
 
-			tip:AddLine ("  |cFFFFFFFF"..percent.."%|r   "..ta[x+1].." "..deitem);
+			if (percent > 0) then
+				tip:AddLine ("  |cFFFFFFFF"..percent.."%|r   "..ta[x+1].." "..deitem)
+			end
 		end
 	end
 
-	tip:AddLine ("  |cFFAAAAFF"..ZT("Required DE skill level")..": "..DEreqLevel);
 end
 
 -----------------------------------------
@@ -777,93 +718,53 @@ end
 
 -----------------------------------------
 
-local function ShowTipWithPricing (tip, link, num)
-
-	if (link == nil) then
-		return;
-	end
-
---[[
-	if (num == "tradeskill") then
+function Atr_STWP_AddVendorInfo (tip, xstring, vendorPrice, auctionPrice)
 	
-		local skill = link;
 	
-		local n;
-		for n = 1,GetTradeSkillNumReagents(skill) do
-			local rname, _, rnum = GetTradeSkillReagentInfo(skill, n);
-			local rlink = GetTradeSkillReagentItemLink (skill, n);
-			zc.md (skill, rlink, rnum);
-		end
-	
-		return;
-	end
-]]--
-
-	local itemName, itemLink, itemRarity, itemLevel, itemMinLevel, itemType, _, _, _, _, itemVendorPrice = GetItemInfo (link);
-
-	local itemID = zc.ItemIDfromLink (link);
-	itemID = tonumber(itemID);
-	
-	local vendorPrice	= 0;
-	local auctionPrice	= 0;
-    local auctionMedianPrice = 0;
-	local dePrice		= nil;
-	
-	if (AUCTIONATOR_V_TIPS == 1) then vendorPrice	= itemVendorPrice; end;
-	if (AUCTIONATOR_A_TIPS == 1) then auctionPrice	= Atr_GetAuctionPrice (itemName); end;
-    if (AUCTIONATOR_A_TIPS == 1) then auctionMedianPrice = Atr_GetMeanPrice (itemName); end;
-	if (AUCTIONATOR_D_TIPS == 1) then dePrice		= Atr_CalcDisenchantPrice (itemType, itemRarity, itemLevel); end;
-    
-	local xstring = "";
-	local showStackPrices = IsShiftKeyDown();
-	
-	if (AUCTIONATOR_SHIFT_TIPS == 2) then
-		showStackPrices = not IsShiftKeyDown();
-	end
-
-	if (num and showStackPrices) then
-		if (auctionPrice)	then	auctionPrice = auctionPrice * num;	end;
-        if (auctionMedianPrice) then auctionMedianPrice = auctionMedianPrice * num; end;
-		if (vendorPrice)	then	vendorPrice  = vendorPrice  * num;	end;
-		if (dePrice)  		then	dePrice  	 = dePrice  * num;	end;
-		xstring = "|cFFAAAAFF x"..num.."|r";
-	end;
-
-	if (vendorPrice == nil) then
-		vendorPrice = 0;
-	end
-
-	-- vendor info
-
 	if (AUCTIONATOR_V_TIPS == 1 and vendorPrice > 0) then
 		local vpadding = Atr_CalcTTpadding (vendorPrice, auctionPrice);
 		tip:AddDoubleLine (ZT("Vendor")..xstring, "|cFFFFFFFF"..zc.priceToMoneyString (vendorPrice))
 	end
 	
-	-- auction info
+end
+	
+-----------------------------------------
 
+function Atr_STWP_AddAuctionInfo (tip, xstring, link, auctionPrice, lastScan)
+	
+	
 	if (AUCTIONATOR_A_TIPS == 1) then
+	
+		if lastScan then
+			tip:AddDoubleLine ("Last Scanned", lastScan);
+		end
+	
 		
-		local bonding = Atr_GetBonding(itemID);
-		local isBOP   = (bonding == 1);
-		local isQuest = (bonding == 4 or bonding == 5);
 		
-		if (isBOP) then
-			tip:AddDoubleLine (ZT("Auction")..xstring, "|cFFFFFFFF"..ZT("BOP").."  ");				
-		elseif (isQuest) then
-			tip:AddDoubleLine (ZT("Auction")..xstring, "|cFFFFFFFF"..ZT("Quest Item").."  ");			
+		local itemID = zc.ItemIDfromLink (link);
+		itemID = tonumber(itemID);
+	
+		local bondtype = Atr_GetBondType (itemID);
+		
+		if (bondtype == ATR_BIND_ON_PICKUP) then
+			tip:AddDoubleLine (ZT("Auction")..xstring, "|cFFFFFFFF"..ZT("BOP").."  ");		
+		elseif (bondtype == ATR_BINDS_TO_ACCOUNT) then
+			tip:AddDoubleLine (ZT("Auction")..xstring, "|cFFFFFFFF"..ZT("BOA").."  ");		
+		elseif (bondtype == ATR_QUEST_ITEM) then
+			tip:AddDoubleLine (ZT("Auction")..xstring, "|cFFFFFFFF"..ZT("Quest Item").."  ");		
 		elseif (auctionPrice ~= nil) then
 			tip:AddDoubleLine (ZT("Auction")..xstring, "|cFFFFFFFF"..zc.priceToMoneyString (auctionPrice));
 		else
 			tip:AddDoubleLine (ZT("Auction")..xstring, "|cFFFFFFFF"..ZT("unknown").."  ");
 		end
-        if (auctionMedianPrice ~= nil) then
-            tip:AddDoubleLine (ZT("Auction median")..xstring, "|cFFFFFFFF"..zc.priceToMoneyString (auctionMedianPrice));
-        end
 	end
+		
+end
 	
-	-- disenchanting info
+-----------------------------------------
 
+function Atr_STWP_AddBasicDEInfo (tip, xstring, dePrice)
+	
 	if (AUCTIONATOR_D_TIPS == 1 and dePrice ~= nil) then
 		if (dePrice > 0) then
 			tip:AddDoubleLine (ZT("Disenchant")..xstring, "|cFFFFFFFF"..zc.priceToMoneyString(dePrice));
@@ -871,6 +772,90 @@ local function ShowTipWithPricing (tip, link, num)
 			tip:AddDoubleLine (ZT("Disenchant")..xstring, "|cFFFFFFFF"..ZT("unknown").."  ");
 		end
 	end
+
+end
+	
+-----------------------------------------
+
+function Atr_STWP_GetPrices (link, num, showStackPrices, itemVendorPrice, itemName, itemType, itemRarity, itemLevel)
+
+	local vendorPrice	= 0;
+	local auctionPrice	= 0;
+	local dePrice		= nil;
+	
+	if (AUCTIONATOR_V_TIPS == 1) then vendorPrice	= itemVendorPrice; end;
+	if (AUCTIONATOR_A_TIPS == 1) then auctionPrice	= Atr_GetAuctionPrice (itemName); end;
+	if (AUCTIONATOR_D_TIPS == 1) then dePrice		= Atr_CalcDisenchantPrice (itemType, itemRarity, itemLevel); end;
+	
+	if (num and showStackPrices) then
+		if (auctionPrice)	then	auctionPrice = auctionPrice * num;	end;
+		if (vendorPrice)	then	vendorPrice  = vendorPrice  * num;	end;
+		if (dePrice)  		then	dePrice  	 = dePrice  * num;	end;
+	end;
+
+	if (vendorPrice == nil) then
+		vendorPrice = 0;
+	end
+
+	return vendorPrice, auctionPrice, dePrice;
+
+end
+
+-----------------------------------------
+
+function Atr_ShowTipWithPricing (tip, link, num)
+
+	-- if (link == nil or zc.IsBattlePetLink(link)) then
+		-- return;
+	-- end
+	
+	if link == nil then
+		return;
+	end
+	
+	local itemName, itemLink, itemRarity, itemLevel, itemMinLevel, itemType, _, _, _, _, itemVendorPrice = GetItemInfo (link);
+		
+
+	local showStackPrices = IsShiftKeyDown();
+	if (AUCTIONATOR_SHIFT_TIPS == 2) then
+		showStackPrices = not IsShiftKeyDown();
+	end
+
+	local xstring = "";
+	if (num and showStackPrices) then
+		xstring = "|cFFAAAAFF x"..num.."|r";
+	end
+
+
+	local vendorPrice, auctionPrice, dePrice = Atr_STWP_GetPrices (link, num, showStackPrices, itemVendorPrice, itemName, itemType, itemRarity, itemLevel);
+
+	-- vendor info
+
+	Atr_STWP_AddVendorInfo (tip, xstring, vendorPrice, auctionPrice)
+	
+	-- auction info
+
+	local TimeDiff = time()
+	if ((type(gAtr_ScanDB) == "table") and gAtr_ScanDB[itemName] and gAtr_ScanDB[itemName].lastScan) then
+		TimeDiff = TimeDiff - gAtr_ScanDB[itemName].lastScan
+		
+		local timeColor = "|cffff0000"
+		if TimeDiff < 60 * 60 * 3 then
+			timeColor = "|cff00ff00"
+		elseif TimeDiff < 60 * 60 * 12 then
+			timeColor = "|cffffff00"
+		end
+		local MakeTimeString = format(timeColor.."%s ago".."|r", SecondsToTime(TimeDiff))
+		
+		Atr_STWP_AddAuctionInfo (tip, xstring, link, auctionPrice, MakeTimeString)
+		
+	else
+		Atr_STWP_AddAuctionInfo (tip, xstring, link, auctionPrice)
+	end
+
+	-- disenchanting info
+
+	Atr_STWP_AddBasicDEInfo (tip, xstring, dePrice)
 
 	local showDetails = true;
 	
@@ -881,8 +866,9 @@ local function ShowTipWithPricing (tip, link, num)
 	if (AUCTIONATOR_DE_DETAILS_TIPS == 5) then showDetails = true; end;
 	
 	if (showDetails and dePrice ~= nil) then
-		Atr_AddDEDetailsToTip (tip, itemType, itemRarity, itemLevel, Atr_DEReqLevel(itemID));
+		Atr_AddDEDetailsToTip (tip, itemType, itemRarity, itemLevel)
 	end
+	
 
 	tip:Show()
 
@@ -893,14 +879,14 @@ end
 hooksecurefunc (GameTooltip, "SetBagItem",
 	function(tip, bag, slot)
 		local _, num = GetContainerItemInfo(bag, slot);
-		ShowTipWithPricing (tip, GetContainerItemLink(bag, slot), num);
+		Atr_ShowTipWithPricing (tip, GetContainerItemLink(bag, slot), num);
 	end
 );
 
 hooksecurefunc (GameTooltip, "SetAuctionItem",
 	function (tip, type, index)
 		local _, _, num = GetAuctionItemInfo(type, index);
-		ShowTipWithPricing (tip, GetAuctionItemLink(type, index), num);
+		Atr_ShowTipWithPricing (tip, GetAuctionItemLink(type, index), num);
 	end
 );
 
@@ -908,16 +894,15 @@ hooksecurefunc (GameTooltip, "SetAuctionSellItem",
 	function (tip)
 		local name, _, count = GetAuctionSellItemInfo();
 		local __, link = GetItemInfo(name);
-		ShowTipWithPricing (tip, link, num);
+		Atr_ShowTipWithPricing (tip, link, num);
 	end
 );
-
 
 hooksecurefunc (GameTooltip, "SetLootItem",
 	function (tip, slot)
 		if LootSlotIsItem(slot) then
 			local link, _, num = GetLootSlotLink(slot);
-			ShowTipWithPricing (tip, link, num);
+			Atr_ShowTipWithPricing (tip, link, num);
 		end
 	end
 );
@@ -925,21 +910,21 @@ hooksecurefunc (GameTooltip, "SetLootItem",
 hooksecurefunc (GameTooltip, "SetLootRollItem",
 	function (tip, slot)
 		local _, _, num = GetLootRollItemInfo(slot);
-		ShowTipWithPricing (tip, GetLootRollItemLink(slot), num);
+		Atr_ShowTipWithPricing (tip, GetLootRollItemLink(slot), num);
 	end
 );
 
 
 hooksecurefunc (GameTooltip, "SetInventoryItem",
 	function (tip, unit, slot)
-		ShowTipWithPricing (tip, GetInventoryItemLink(unit, slot), GetInventoryItemCount(unit, slot));
+		Atr_ShowTipWithPricing (tip, GetInventoryItemLink(unit, slot), GetInventoryItemCount(unit, slot));
 	end
 );
 
 hooksecurefunc (GameTooltip, "SetGuildBankItem",
 	function (tip, tab, slot)
 		local _, num = GetGuildBankItemInfo(tab, slot);
-		ShowTipWithPricing (tip, GetGuildBankItemLink(tab, slot), num);
+		Atr_ShowTipWithPricing (tip, GetGuildBankItemLink(tab, slot), num);
 	end
 );
 
@@ -952,36 +937,28 @@ hooksecurefunc (GameTooltip, "SetTradeSkillItem",
 			num = select (3, GetTradeSkillReagentInfo(skill, id));
 		end
 
-		ShowTipWithPricing (tip, link, num);
+		Atr_ShowTipWithPricing (tip, link, num);
 	end
 );
 
 hooksecurefunc (GameTooltip, "SetTradePlayerItem",
 	function (tip, id)
 		local _, _, num = GetTradePlayerItemInfo(id);
-		ShowTipWithPricing (tip, GetTradePlayerItemLink(id), num);
+		Atr_ShowTipWithPricing (tip, GetTradePlayerItemLink(id), num);
 	end
 );
 
 hooksecurefunc (GameTooltip, "SetTradeTargetItem",
 	function (tip, id)
 		local _, _, num = GetTradeTargetItemInfo(id);
-		ShowTipWithPricing (tip, GetTradeTargetItemLink(id), num);
+		Atr_ShowTipWithPricing (tip, GetTradeTargetItemLink(id), num);
 	end
 );
 
 hooksecurefunc (GameTooltip, "SetQuestItem",
 	function (tip, type, index)
 		local _, _, num = GetQuestItemInfo(type, index);
-		ShowTipWithPricing (tip, GetQuestItemLink(type, index), num);
-	end
-);
-
-hooksecurefunc (GameTooltip, "SetMerchantItem",
-	function(tip, merchantID)
-		local itemLink = GetMerchantItemLink(merchantID)
-		local _, _, _, num = GetMerchantItemInfo(merchantID)
-		ShowTipWithPricing (tip, itemLink, num);
+		Atr_ShowTipWithPricing (tip, GetQuestItemLink(type, index), num);
 	end
 );
 
@@ -994,14 +971,14 @@ hooksecurefunc (GameTooltip, "SetQuestLogItem",
 			_, _, num = GetQuestLogRewardInfo(index)
 		end
 
-		ShowTipWithPricing (tip, GetQuestLogItemLink(type, index), num);
+		Atr_ShowTipWithPricing (tip, GetQuestLogItemLink(type, index), num);
 	end
 );
 
 hooksecurefunc (GameTooltip, "SetInboxItem",
 	function (tip, index, attachIndex)
 		local _, _, num = GetInboxItem(index, attachIndex);
-		ShowTipWithPricing (tip, GetInboxItemLink(index, attachIndex), num);
+		Atr_ShowTipWithPricing (tip, GetInboxItemLink(index, attachIndex), num);
 	end
 );
 
@@ -1009,30 +986,20 @@ hooksecurefunc (GameTooltip, "SetSendMailItem",
 	function (tip, id)
 		local name, _, num = GetSendMailItem(id)
 		local name, link = GetItemInfo(name);
-		ShowTipWithPricing (tip, link, num);
+		Atr_ShowTipWithPricing (tip, link, num);
 	end
 );
 
 hooksecurefunc (GameTooltip, "SetHyperlink",
 	function (tip, itemstring, num)
 		local name, link = GetItemInfo (itemstring);
-		ShowTipWithPricing (tip, link, num);
+		Atr_ShowTipWithPricing (tip, link, num);
 	end
 );
 
 hooksecurefunc (ItemRefTooltip, "SetHyperlink",
 	function (tip, itemstring)
 		local name, link = GetItemInfo (itemstring);
-		ShowTipWithPricing (tip, link);
+		Atr_ShowTipWithPricing (tip, link);
 	end
 );
-
-
-
-
-
-
-
-
-
-
