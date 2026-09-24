@@ -8,6 +8,12 @@ local _
 Atr_SList = {}
 Atr_SList.__index = Atr_SList
 
+-- Auctionator's own reference to the shopping list class. Atr_SList is a
+-- global, so another addon can replace it after the lists are set up, which
+-- leaves every list without its methods ("attempt to call method
+-- 'FindItemIndex' (a nil value)"). Atr_ShpLists_Repair puts it back.
+local kSListClass = Atr_SList
+
 local SLITEMS_NUM_LINES = 15
 
 local WEAPON = 1
@@ -36,22 +42,63 @@ function Atr_ShoppingListsInit ()
 		end
 	end
 
-	local num = #AUCTIONATOR_SHOPPING_LISTS;
-	local x;
+	Atr_ShpLists_Repair ()
 	
-	for x = 1,num do
-		setmetatable (AUCTIONATOR_SHOPPING_LISTS[x], Atr_SList);
+end
+
+-----------------------------------------
+
+-- Makes sure every shopping list is usable: Atr_SList is Auctionator's class,
+-- each list has the class's methods, a name and an items table, and the
+-- Recent Searches list exists. Cheap enough to run before each use.
+
+function Atr_ShpLists_Repair ()
+
+	if (Atr_SList ~= kSListClass) then
+		zz ("Atr_SList was replaced; restoring it")
+		Atr_SList = kSListClass
 	end
-	
-	for x = 1,num do
-		local slist = AUCTIONATOR_SHOPPING_LISTS[x]
-		
-		if (slist.name == nil) then
-			slist.name = "foo"
-			zz ("null named shopping list found")
+
+	if (type (AUCTIONATOR_SHOPPING_LISTS) ~= "table") then
+		return
+	end
+
+	local x, slist
+	local hasRecents = false
+
+	for x = #AUCTIONATOR_SHOPPING_LISTS, 1, -1 do
+		slist = AUCTIONATOR_SHOPPING_LISTS[x]
+
+		if (type (slist) ~= "table") then
+			zz ("dropping shopping list entry that is not a table:", x)
+			table.remove (AUCTIONATOR_SHOPPING_LISTS, x)
+		else
+			if (getmetatable (slist) ~= kSListClass) then
+				setmetatable (slist, kSListClass)
+			end
+
+			if (slist.name == nil) then
+				slist.name = "foo"
+				zz ("null named shopping list found")
+			end
+
+			if (type (slist.items) ~= "table") then
+				slist.items = {}
+			end
+
+			if (slist.isRecents) then
+				hasRecents = true
+			end
 		end
 	end
-	
+
+	if (not hasRecents) then
+		kSListClass.create (ZT("Recent Searches"), true);
+	end
+
+	if (type (gCurrentSList) == "table" and getmetatable (gCurrentSList) ~= kSListClass) then
+		setmetatable (gCurrentSList, kSListClass)
+	end
 end
 
 -----------------------------------------
@@ -63,7 +110,7 @@ function Atr_SList.create (name, isRecents, isTemporary)
 	end
 
 	local slist = {};
-	setmetatable (slist,Atr_SList);
+	setmetatable (slist,kSListClass);
 
 	slist.name		= name;
 	slist.items		= {};
@@ -323,6 +370,8 @@ end
 -----------------------------------------
 
 function Atr_AddToRecents (searchText)
+
+	Atr_ShpLists_Repair ()
 
 	local recentsList = AUCTIONATOR_SHOPPING_LISTS[1];
 	if (recentsList) then
@@ -642,7 +691,7 @@ end
 
 function Atr_ShpList_Validate ()
 
-	if (gCurrentSList and getmetatable (gCurrentSList) ~= Atr_SList) then
+	if (gCurrentSList and getmetatable (gCurrentSList) ~= kSListClass) then
 		zc.msg_badErr ("gCurrentSList bad metatable; type gCurrentSList: ", type (gCurrentSList))
 	end
 	
@@ -655,7 +704,7 @@ function Atr_ShpList_Validate ()
 		
 		if (slist == nil) then
 			zz ("slist["..x.."] is nil")
-		elseif (getmetatable (slist) ~= Atr_SList) then
+		elseif (getmetatable (slist) ~= kSListClass) then
 			zc.msg_badErr ("slist["..x.."] bad metatable; type: ", type (slist))
 		else
 			zz ("slist["..x.."] is valid")
@@ -675,15 +724,17 @@ function Atr_Shop_UpdateUI ()
 	Atr_RemFromSListButton:Disable();
 	Atr_SrchSListButton:Disable();
 	
+	Atr_ShpLists_Repair ()
+
 	if (gCurrentSList == nil) then
 		Atr_ShpList_SetToRecents()
 	end
 
-	if (getmetatable (gCurrentSList) ~= Atr_SList) then
+	if (getmetatable (gCurrentSList) ~= kSListClass) then
 		Atr_ShpList_Validate()
 	end
 
-	if (gCurrentSList and getmetatable (gCurrentSList) == Atr_SList) then		-- somehow gCurrentSList:DisplayX is sometimes nil - not sure why yet
+	if (gCurrentSList and getmetatable (gCurrentSList) == kSListClass) then		-- somehow gCurrentSList:DisplayX is sometimes nil - not sure why yet
 		gCurrentSList:DisplayX ();
 	
 		local iName = Atr_Search_Box:GetText();
