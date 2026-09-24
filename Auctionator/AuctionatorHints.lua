@@ -763,6 +763,86 @@ end
 	
 -----------------------------------------
 
+local ATR_MEDIAN_MAX_SCANS = 15;
+
+-- Keeps the lowest price from each of the last ATR_MEDIAN_MAX_SCANS full
+-- scans, oldest first.
+
+function Atr_AddFullScanMedianPrice (itemName, price)
+
+	if (type(gAtr_MeanDB) ~= "table" or itemName == nil or type(price) ~= "number" or price <= 0) then
+		return;
+	end
+
+	if (type(gAtr_MeanDB[itemName]) ~= "table") then
+		gAtr_MeanDB[itemName] = {};
+	end
+
+	local prices = gAtr_MeanDB[itemName];
+
+	table.insert (prices, price);
+
+	while (#prices > ATR_MEDIAN_MAX_SCANS) do
+		table.remove (prices, 1);
+	end
+end
+
+-----------------------------------------
+
+function Atr_GetMedianPrice (item)  -- itemName or itemID
+
+	local itemName = item;
+
+	if (type (item) == "number") then
+		itemName = GetItemInfo (item);
+	end
+
+	if (itemName == nil or type(gAtr_MeanDB) ~= "table" or type(gAtr_MeanDB[itemName]) ~= "table") then
+		return nil;
+	end
+
+	local sorted = {};
+	local price;
+	for _, price in ipairs (gAtr_MeanDB[itemName]) do
+		table.insert (sorted, price);
+	end
+
+	local n = #sorted;
+	if (n == 0) then
+		return nil;
+	end
+
+	table.sort (sorted);
+
+	if (n % 2 == 0) then
+		return math.floor ((sorted[n/2] + sorted[n/2 + 1]) / 2);
+	end
+
+	return sorted[math.ceil (n/2)];
+end
+
+-----------------------------------------
+
+function Atr_STWP_AddMedianInfo (tip, xstring, itemName, num, showStackPrices)
+
+	if (AUCTIONATOR_A_TIPS ~= 1) then
+		return;
+	end
+
+	local medianPrice = Atr_GetMedianPrice (itemName);
+	if (medianPrice == nil) then
+		return;
+	end
+
+	if (num and showStackPrices) then
+		medianPrice = medianPrice * num;
+	end
+
+	tip:AddDoubleLine (ZT("Auction median")..xstring, "|cFFFFFFFF"..zc.priceToMoneyString (medianPrice));
+end
+
+-----------------------------------------
+
 function Atr_STWP_AddBasicDEInfo (tip, xstring, dePrice)
 	
 	if (AUCTIONATOR_D_TIPS == 1 and dePrice ~= nil) then
@@ -852,6 +932,8 @@ function Atr_ShowTipWithPricing (tip, link, num)
 	else
 		Atr_STWP_AddAuctionInfo (tip, xstring, link, auctionPrice)
 	end
+
+	Atr_STWP_AddMedianInfo (tip, xstring, itemName, num, showStackPrices)
 
 	-- disenchanting info
 

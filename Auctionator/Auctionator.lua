@@ -490,6 +490,7 @@ local function Atr_ClearFullScanDB ()
 
 	gAtr_ScanDB = nil;
 	AUCTIONATOR_PRICE_DATABASE = nil;
+	AUCTIONATOR_MEAN_PRICE_DATABASE = nil;
 	Atr_InitScanDB();
 	zc.msg_anm (ZT("full scan database cleared"));
 end
@@ -812,6 +813,23 @@ function Atr_InitScanDB()
 
 	Atr_PruneScanDB ();
 	Atr_PrunePostDB ();
+
+	-- Full scan prices behind the tooltip's median line, per realm and faction.
+	if (type(AUCTIONATOR_MEAN_PRICE_DATABASE) ~= "table") then
+		AUCTIONATOR_MEAN_PRICE_DATABASE = {};
+	end
+
+	if (AUCTIONATOR_MEAN_PRICE_DATABASE[realm_Faction] == nil) then
+		AUCTIONATOR_MEAN_PRICE_DATABASE[realm_Faction] = {};
+	end
+
+	gAtr_MeanDB = AUCTIONATOR_MEAN_PRICE_DATABASE[realm_Faction];
+
+	for name in pairs (gAtr_MeanDB) do		-- drop items the scan database has pruned
+		if (gAtr_ScanDB[name] == nil) then
+			gAtr_MeanDB[name] = nil;
+		end
+	end
 	
 	Atr_Broadcast_DBupdated (#gAtr_ScanDB, "dbinited");
 
