@@ -1072,7 +1072,7 @@
    <!-- Buy Confirmation screen --> 
 
 	<Frame name="Atr_Buy_Confirm_Frame" inherits="AuctionatorDialog" toplevel="true" parent="UIParent" frameStrata="FULLSCREEN_DIALOG" enableMouse="true" hidden="true">
-		<Size><AbsDimension x="390" y="180" /></Size>		
+		<Size><AbsDimension x="390" y="200" /></Size>		
 		<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="270" y="-290"/></Offset></Anchor></Anchors>
 
 		<Scripts>
@@ -1089,6 +1089,14 @@
 				
 				<FontString name="Atr_Buy_Confirm_ItemPriceText" inherits="GameFontNormalSmall" justifyH="RIGHT">
 					<Anchors><Anchor point="TOPRIGHT"><Offset><AbsDimension x="-24" y="-24"/></Offset></Anchor></Anchors>
+				</FontString>
+
+				<!-- running totals while bulk buying across prices -->
+				<FontString name="Atr_Buy_Session_Text" inherits="GameFontHighlightSmall" justifyH="LEFT">
+					<Anchors>
+						<Anchor point="BOTTOMLEFT"><Offset><AbsDimension x="30" y="56"/></Offset></Anchor>
+						<Anchor point="RIGHT"><Offset><AbsDimension x="-24"/></Offset></Anchor>
+					</Anchors>
 				</FontString>
 			</Layer>
 		</Layers>
