@@ -16,6 +16,7 @@ Auctionator is designed for casual everyday auction house users. Auctionator mak
 
 - **Shopping Lists options page:** the list box keeps its 180px width. On 3.3.5 its original anchors stretched it across the page, and its rows covered the Delete, Edit and Rename buttons so they couldn't be clicked.
 - **Shopping list Edit window** (Edit, Import, Export): can be dragged and has a close button.
+- **Shopping lists protected from other add-ons:** Auctionator keeps its own reference to the shopping list class. It repairs the lists before using them and restores the global `Atr_SList` if another add-on has replaced it. Without this, the first search fails with `attempt to call method 'FindItemIndex' (a nil value)`.
 - **Auction median tooltip line:** the median of an item's lowest price across its last 15 full scans, shown under the **Auction** line. Holding Shift shows the stack price, like the other lines. The prices are saved per realm and faction in `AUCTIONATOR_MEAN_PRICE_DATABASE`. They're cleared along with the full scan database, and dropped when Auctionator prunes the item from its scan database. Run a full scan to start collecting prices.
 
 ## Install
