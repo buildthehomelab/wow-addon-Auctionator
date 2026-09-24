@@ -12,6 +12,11 @@ Auctionator is designed for casual everyday auction house users. Auctionator mak
 | `Auctionator` | Auctionator 3.1.5 by Zirco |
 | `AuctionatorMiniFeatures` | Auctionator MiniFeatures 5.4v2 by ckaotik, an optional extra that requires Auctionator |
 
+## Changes from stock 3.1.5
+
+- **Shopping Lists options page:** the list box keeps its 180px width. On 3.3.5 its original anchors stretched it across the page, and its rows covered the Delete, Edit and Rename buttons so they couldn't be clicked.
+- **Shopping list Edit window** (Edit, Import, Export): can be dragged and has a close button.
+
 ## Install
 
 Copy both folders into `World of Warcraft/Interface/AddOns/`. `AuctionatorMiniFeatures` is optional.
