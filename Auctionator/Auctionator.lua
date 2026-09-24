@@ -1184,6 +1184,12 @@ function Atr_Init()
 		Atr_ResetSavedVars()
 	end
 
+	-- Atr_OnLoad already did this, but if it ran before the saved shopping
+	-- lists loaded, or stopped on an error first, the lists have no Atr_SList
+	-- methods and the first search fails in Atr_AddToRecents. Doing it again
+	-- here, once the AH UI has loaded, is safe and puts them back.
+	Atr_ShoppingListsInit();
+
 	--Bump_MaxButton_Hack();
 
 
