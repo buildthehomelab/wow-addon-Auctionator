@@ -916,7 +916,9 @@
 						<Scripts>
 							<OnCursorChanged function="ScrollingEdit_OnCursorChanged"/>
 							<OnUpdate>
-								ScrollingEdit_OnUpdate(self, elapsed, self:GetParent());
+								if (self.cursorOffset) then		-- nil until OnCursorChanged has run
+									ScrollingEdit_OnUpdate(self, elapsed, self:GetParent());
+								end
 							</OnUpdate>
 							<OnEscapePressed function="EditBox_ClearFocus"/>
 						</Scripts>

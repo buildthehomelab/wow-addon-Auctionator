@@ -1472,6 +1472,17 @@ function Atr_PruneScanDB(verbose)
 		zc.msg_badErr ("gAtr_ScanDB:", gAtr_ScanDB)
 		return
 	end
+
+	-- Auctionator 2.x saved a plain price per item; 3.x expects a table.
+	-- Keep an old price as the most recent price and drop anything else,
+	-- otherwise the loop below fails and stops Atr_OnLoad.
+	for itemName, info in pairs (gAtr_ScanDB) do
+		if (type (info) == "number") then
+			gAtr_ScanDB[itemName] = { mr = info };
+		elseif (type (info) ~= "table") then
+			gAtr_ScanDB[itemName] = nil;
+		end
+	end
 	
 	for itemName, info in pairs (gAtr_ScanDB) do
 	
