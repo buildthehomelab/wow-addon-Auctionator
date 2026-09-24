@@ -1,12 +1,12 @@
 ## Interface: 30300
 ## Title: Auctionator
-## Version: 2.6.8
+## Version: 3.1.5
 ## Author: Zirco
 ## X-Website: http://auctionator-addon.com
-## X-Localizations: enUS, deDE, ruRU, svSE, frFR, esES
+## X-Localizations: enUS, deDE, ruRU, svSE, frFR, esES, zhTW
 ## Notes: A lightweight addon that makes it easy and fast to buy, sell and manage auctions
 ## SavedVariablesPerCharacter: AUCTIONATOR_SHOW_ST_PRICE, AUCTIONATOR_ENABLE_ALT, AUCTIONATOR_OPEN_FIRST, AUCTIONATOR_OPEN_BUY, AUCTIONATOR_OPEN_ALL_BAGS, AUCTIONATOR_DEF_DURATION, AUCTIONATOR_SHOW_TIPS, AUCTIONATOR_V_TIPS, AUCTIONATOR_A_TIPS, AUCTIONATOR_D_TIPS, AUCTIONATOR_SHIFT_TIPS, AUCTIONATOR_DE_DETAILS_TIPS, AUCTIONATOR_DEFTAB
-## SavedVariables: AUCTIONATOR_SAVEDVARS, AUCTIONATOR_PRICING_HISTORY, AUCTIONATOR_SHOPPING_LISTS, AUCTIONATOR_PRICE_DATABASE, AUCTIONATOR_MEAN_PRICE_DATABASE AUCTIONATOR_LAST_SCAN_TIME, AUCTIONATOR_TOONS, AUCTIONATOR_STACKING_PREFS, AUCTIONATOR_SCAN_MINLEVEL
+## SavedVariables: AUCTIONATOR_SAVEDVARS, AUCTIONATOR_PRICING_HISTORY, AUCTIONATOR_SHOPPING_LISTS, AUCTIONATOR_PRICE_DATABASE, AUCTIONATOR_LAST_SCAN_TIME, AUCTIONATOR_TOONS, AUCTIONATOR_STACKING_PREFS, AUCTIONATOR_SCAN_MINLEVEL, AUCTIONATOR_DB_MAXITEM_AGE, AUCTIONATOR_DB_MAXHIST_AGE, AUCTIONATOR_DB_MAXHIST_DAYS, AUCTIONATOR_DC_PAUSE, AUCTIONATOR_DE_DATA, AUCTIONATOR_DE_DATA_BAK
 
 Locales\enUS.lua
 Locales\deDE.lua
@@ -14,9 +14,11 @@ Locales\ruRU.lua
 Locales\frFR.lua
 Locales\svSE.lua
 Locales\esES.lua
+Locales\zhTW.lua
 
 zcUtils.lua
 
+AtrErrorInspector.lua
 Auctionator.lua
 AuctionatorShop.lua
 
@@ -24,7 +26,9 @@ Auctionator.xml
 
 AuctionatorLocalize.lua
 AuctionatorPane.lua
+AuctionatorDatabase.lua
 AuctionatorScan.lua
+AuctionatorScanFull.lua
 AuctionatorQuery.lua
 AuctionatorHints.lua
 AuctionatorVendor.lua

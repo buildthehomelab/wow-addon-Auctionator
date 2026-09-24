@@ -1,4 +1,8 @@
 
+local addonName, addonTable = ...; 
+local zc = addonTable.zc;
+local zz = zc.md;
+local _
 
 -----------------------------------------
 
@@ -42,7 +46,7 @@ end
 function Atr_GetAuctionBuyout (item)  -- Just like Tekkub's API but for when you want to be sure you're calling Auctionator's version of it
 
 	local sellval;
-	
+
 	if (type(item) == "string") then
 		sellval = Atr_GetAuctionPrice(item);
 	end
@@ -53,6 +57,7 @@ function Atr_GetAuctionBuyout (item)  -- Just like Tekkub's API but for when you
 			sellval = Atr_GetAuctionPrice(name);
 		end
 	end
+
 	
 	if (sellval) then
 		return sellval;
@@ -78,3 +83,70 @@ function Atr_GetDisenchantValue (item)
 	return nil;
 end
 
+-----------------------------------------
+
+function Atr_SearchAH (shoppingListName, items)
+
+	if (shoppingListName == nil) then
+		shoppingListName = "Unknown"
+	end
+
+	local slist = Atr_SList.create (shoppingListName, false, true)
+
+	local i;
+	for i = 1, #items do
+		slist:AddItem ("\""..items[i].."\"")
+	end
+
+	if (not Atr_IsTabSelected(SELL_TAB)) then
+		Atr_SelectPane (SELL_TAB);
+	end
+
+	Atr_SetSearchText ("{ "..shoppingListName.." }");
+	Atr_Search_Onclick();
+
+end
+
+-----------------------------------------
+
+local DBupdateCallbacks = {};
+
+-----------------------------------------
+
+function Atr_RegisterFor_DBupdated (cbFunc)
+
+	table.insert (DBupdateCallbacks, cbFunc);
+
+end
+
+-----------------------------------------
+
+function Atr_Broadcast_DBupdated (num, kind, binfo)
+
+	local n;
+	
+	for n = 1,#DBupdateCallbacks do
+		local cbFunc = DBupdateCallbacks[n]
+		if (type(cbFunc) == "function") then
+			cbFunc(num, kind, binfo)
+		end
+	end
+
+end
+
+-----------------------------------------
+--[[
+function Atr_TestListener (num, kind, binfo)
+	zz (num, "items found", kind)
+	
+	if (type(binfo) == "table") then
+		local z;
+		for z = 1,#binfo do
+			zz (z, binfo[z].i, binfo[z].p)
+		end
+	end
+end
+
+
+Atr_RegisterFor_DBupdated (Atr_TestListener)
+]]--

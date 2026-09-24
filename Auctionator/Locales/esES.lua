@@ -1,6 +1,6 @@
 ﻿function AtrBuildLTable_esES ()
 
--- Version 1.1
+-- Version 1.2
 
 AtrL = {};
 
@@ -16,9 +16,9 @@ AtrL["SCAN_EXPLANATION"] = "El escaneo de la casa de subastas construye una base
 
 -- New Vars
 
-AtrL["Your auction has been undercut:\n%s%s"] = "Hay subastas más baratas para:\n%s%s"
-AtrL["Cancel My Auction"] = "Cancelar Mi Subasta"
-AtrL["Leave it"] = "Continuar"
+AtrL["Options"] = "Opciones"
+AtrL["Yes, cancel them"] = "Si, cancelarlas"
+AtrL["No, leave them"] = "No dejarlas"
 
 -- End New Vars
 
@@ -35,7 +35,7 @@ AtrL["Undercutting"] = "Descuento"
 AtrL["Selling"] = "Ventas"
 AtrL["Configure how you typically like to sell the items listed below."] = "Configura como quieres vender los artículos listados a continuación"
 AtrL["About"] = "Acerca de"
-AtrL["About Auctionator"] = "Acerca de el Subastador"
+AtrL["About Auctionator"] = "Acerca de 'El Subastador'"
 AtrL["Spanish translation courtesy of %s"] = "Traducción a español por cortesía de %s"
 AtrL["%d of %d bought so far"] = "%d de %d comprado hasta ahora"
 AtrL["Active Items"] = "Artículos Activos"
@@ -45,7 +45,6 @@ AtrL["always"] = "siempre"
 AtrL["Are you sure you want to create\nan auction with no buyout price?"] = "¿Está usted seguro de que quiere crear una subasta\nsin precio de venta?"
 AtrL["As many as possible"] = "Tantos como sea posible"
 AtrL["Auction"] = "Subasta"
-AtrL["Auction median"] = "Mediana de la subasta"
 AtrL["Auction #%d created for %s"] = "Subasta #%d creada para %s"
 AtrL["Auction cancelled for "] = "Subasta cancelada para "
 AtrL["Auction created for %s"] = "Subasta creada para %s"
@@ -175,7 +174,7 @@ AtrL["Reset to Default"] = "Restaurar valores"
 AtrL["Russian translation courtesy of %s"] = "Traducción rusa por cortesía de %s"
 AtrL["Scan complete"] = "Escaneo completo"
 AtrL["Scan in progress"] = "Escaneo en progreso"
-AtrL["Scanning"] = "Escaneando"
+AtrL["Scanning"] = "Escaner"
 AtrL["Scanning auctions: page %d"] = "Explorando subastas: página %d"
 AtrL["Scanning is entirely optional."] = "El escaneo completo es totalmente opcional."
 AtrL["scanning options saved"] = "opciones de escaneo guardadas"
@@ -211,7 +210,6 @@ AtrL["unknown"] = "desconocido"
 AtrL["unrecognized command"] = "comando no reconocido"
 AtrL["Vendor"] = "Vendedor"
 AtrL["Version"] = "Versión"
-AtrL["Options"] = "Opciones"
 AtrL["when ALT is held down"] = "cuando ALT es presionado"
 AtrL["when CONTROL is held down"] = "cuando CONTROL es presionado"
 AtrL["When SHIFT is down show"] = "si SHIFT está presionado muestra el"
@@ -231,4 +229,3 @@ AtrL["Spanish translation courtesy of %s"] = "Traducción a español por cortes�
 
 
 end
- 

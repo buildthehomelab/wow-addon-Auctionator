@@ -1,6 +1,8 @@
 
-local addonName, addonTable = ...; 
-local zc = addonTable.zc;
+local addonName, addonTable = ...
+local zc = addonTable.zc
+local zz = zc.md
+local _
 
 KM_NULL_STATE	= 0;
 KM_PREQUERY		= 1;
@@ -9,10 +11,13 @@ KM_POSTQUERY	= 3;
 KM_ANALYZING	= 4;
 KM_SETTINGSORT	= 5;
 
-local AUCTION_CLASS_WEAPON = 1;
-local AUCTION_CLASS_ARMOR  = 2;
+local AUCTION_CLASS_WEAPON		 = 1;
+local AUCTION_CLASS_ARMOR 		 = 2;
+-- local AUCTION_CLASS_BATTLEPET	 = 11;
 
 local gAllScans = {};
+
+-- local BATTLE_PET_ITEMID = 82800
 
 local BIGNUM = 999999999999;
 
@@ -20,6 +25,10 @@ local ATR_SORTBY_NAME_ASC = 0;
 local ATR_SORTBY_NAME_DES = 1;
 local ATR_SORTBY_PRICE_ASC = 2;
 local ATR_SORTBY_PRICE_DES = 3;
+
+gScanHistDayZero = time({year=2010, month=11, day=15, hour=0});		-- never ever change
+
+local gNumNilItemLinks
 
 -----------------------------------------
 
@@ -33,98 +42,120 @@ AtrSearch.__index = AtrSearch;
 
 -----------------------------------------
 
-function Atr_NewSearch (itemName, exact, rescanThreshold, callback)
+local function GetExactMatchText (searchText)
+
+	local emtext = nil;
+	
+	if (zc.StringStartsWith (searchText, "\"") and zc.StringEndsWith (searchText, "\"")) then
+		emtext = string.sub (searchText, 2, searchText:len()-1);
+	end
+
+	return emtext;
+end
+
+-----------------------------------------
+
+function Atr_NewSearch (itemName, IDstring, itemLink, rescanThreshold)
 
 	local srch = {};
 	setmetatable (srch, AtrSearch);
-	srch:Init (itemName, exact, rescanThreshold, callback);
+	srch:Init (itemName, IDstring, itemLink, rescanThreshold);
 
 	return srch;
 end
 
 -----------------------------------------
 
-function AtrSearch:Init (searchText, exact, rescanThreshold, callback)
+function AtrSearch:Init (searchText, IDstring, itemLink, rescanThreshold)
 
 	if (searchText == nil) then
-		searchText = "";
+		searchText = ""
 	end
 
-	self.origSearchText = searchText;
+	self.origSearchText = searchText
 	
-	if (not exact) then
-		if (zc.StringStartsWith (searchText, "\"") and zc.StringEndsWith (searchText, "\"")) then
-			searchText = string.sub (searchText, 2, searchText:len()-1);
-			exact = true;
+	self.exactMatchText	= nil;
+	self.searchText		= searchText
+	
+	if (IDstring == nil) then
+		self.exactMatchText = GetExactMatchText(searchText)
+		if (self.exactMatchText) then
+			self.searchText = self.exactMatchText
 		end
 	end		
 
-	self.searchText			= searchText;
-	self.exact				= exact;
+	self.IDstring			= IDstring
 	self.processing_state	= KM_NULL_STATE
 	self.current_page		= -1
-	self.items				= {};
-	self.query				= Atr_NewQuery();
-	self.sortedScans		= nil;
-	self.sortHow			= ATR_SORTBY_PRICE_ASC;
-	self.callback			= callback;
+	self.items				= {}
+	self.query				= Atr_NewQuery()
+	self.sortedScans		= nil
+	self.sortHow			= ATR_SORTBY_PRICE_ASC
+	self.shopListIndex		= 1
+	self.shplist			= Atr_GetShoppingListFromSearchText (self.searchText)
+
+	if (Atr_IsCompoundSearch(self.searchText)) then
+		_, _, _, _, _, self.minItemLevel, self.maxItemLevel = Atr_ParseCompoundSearch (self.searchText);
+	end
 	
-	if (exact) then	
+	if (IDstring) then	
 
 		if (rescanThreshold and rescanThreshold > 0) then
-			local scan = Atr_FindScan (searchText);
+			local scan = Atr_FindScan (IDstring, searchText);
 			if (scan and (time() - scan.whenScanned) <= rescanThreshold) then
-				self.items[searchText] = scan;
+				self.items[IDstring] = scan;
+				self.items[IDstring]:UpdateItemLink (itemLink);
 			end
 		end
 		
-		if (not self.items[searchText]) then		
-			self.items[searchText] = Atr_FindScanAndInit (searchText);
+		if (not self.items[IDstring]) then		
+			self.items[IDstring] = Atr_FindScanAndInit (IDstring, searchText);
+			self.items[IDstring]:UpdateItemLink (itemLink);
 		end
 		
 	end
-	
+
 end
 
 -----------------------------------------
 
-function Atr_FindScanAndInit (itemName)
+function Atr_FindScanAndInit (IDstring, itemName)
 
-	return Atr_FindScan (itemName, true);
+	return Atr_FindScan (IDstring, itemName, true);
 end
 
 -----------------------------------------
 
-function Atr_FindScan (itemName, init)
+function Atr_FindScan (IDstring, itemName, init)
 
-	if (itemName == nil or itemName == "") then
+	if (IDstring == nil or IDstring == "" or IDstring == "0") then
+		IDstring = "0";
 		itemName = "nil";
 	end
 
-	local itemNameLC = string.lower (itemName);
-
-	if (gAllScans[itemNameLC] == nil) then
-
+	if (gAllScans[IDstring] == nil and itemName ~= nil) then	-- if no itemName provided then we can't create
 		local scn = {};
 		setmetatable (scn, AtrScan);
-		scn:Init (itemName);
+		gAllScans[IDstring] = scn;
+		init = true;
+--		zz ("creating scan: ", IDstring, itemName);
+	end
 
-		gAllScans[itemNameLC] = scn;
-	elseif (init) then
-		gAllScans[itemNameLC]:Init (itemName);
+	if (init and gAllScans[IDstring] ~= nil) then
+--		zz ("initing scan: ", IDstring, itemName);
+		
+		gAllScans[IDstring]:Init (IDstring, itemName);
 	end
 	
-	return gAllScans[itemNameLC];
+	return gAllScans[IDstring];
 end
 
 -----------------------------------------
 
 function Atr_ClearScanCache ()
 
---	zc.msg_red ("Clearing Scan Cache");
-
 	for a,v in pairs (gAllScans) do
-		if (a ~= "nil") then
+		if (a ~= "0") then
 			gAllScans[a] = nil;
 		end
 	end
@@ -133,51 +164,72 @@ end
 
 -----------------------------------------
 
-function AtrScan:Init (itemName)
-	self.itemName			= itemName;
+function AtrScan:Init (IDstring, itemName)
+
+	self.IDstring			= IDstring;
+	
+	if (itemName) then
+		self.itemName = itemName;
+	end
+	
 	self.itemLink			= nil;
-	self.texture            = nil;
 	self.scanData			= {};
 	self.sortedData			= {};
 	self.whenScanned		= 0;
-	self.lowprices			= {BIGNUM, BIGNUM, BIGNUM};
+	self.lowprice			= BIGNUM;
 	self.absoluteBest		= nil;
 	self.itemClass			= 0;
 	self.itemSubclass		= 0;
+	self.itemLevel			= 0;
 	self.yourBestPrice		= nil;
 	self.yourWorstPrice		= nil;
-	self.numYourSingletons	= 0;
 	self.itemTextColor 		= { 1.0, 1.0, 1.0 };
 	self.searchText			= nil;
 	
-	self:UpdateItemLink (Atr_GetItemLink (itemName));
 end
+
 
 -----------------------------------------
 
 function AtrScan:UpdateItemLink (itemLink)
 
-	self.itemLink = itemLink;
+	if (itemLink and self.itemLink == nil) then
 	
-	if (itemLink) then
-	
-		Atr_AddToItemLinkCache (self.itemName, itemLink);
+		self.itemLink = itemLink;
 
-		local _, _, quality, _, _, sType, sSubType = GetItemInfo(itemLink);
+		local _, quality, iLevel, sType, sSubType;
 
+		-- if (zc.IsBattlePetLink (itemLink)) then
+			
+			-- local speciesID, level, breedQuality = zc.ParseBattlePetLink (itemLink)
+			
+			-- iLevel	= level;
+			-- quality	= breedQuality;
+			
+			-- self.itemClass		= AUCTION_CLASS_BATTLEPET;
+			-- self.itemSubclass	= 0;
+
+		-- else
+			_, _, quality, iLevel, _, sType, sSubType = GetItemInfo(itemLink);
+
+			self.itemClass		= Atr_ItemType2AuctionClass (sType);
+			self.itemSubclass	= Atr_SubType2AuctionSubclass (self.itemClass, sSubType);	
+		-- end
+			
 		self.itemQuality	= quality;
-		self.itemClass		= Atr_ItemType2AuctionClass (sType);
-		self.itemSubclass	= Atr_SubType2AuctionSubclass (self.itemClass, sSubType);	
+		self.itemLevel		= iLevel;
 
-		self.itemTextColor = { 1.0, 1.0, 1.0 };
+		self.itemTextColor = { 0.75, 0.75, 0.75 };
 
 		if (quality == 0)	then	self.itemTextColor = { 0.6, 0.6, 0.6 };	end
+		if (quality == 1)	then	self.itemTextColor = { 1.0, 1.0, 1.0 };	end
 		if (quality == 2)	then	self.itemTextColor = { 0.2, 1.0, 0.0 };	end
 		if (quality == 3)	then	self.itemTextColor = { 0.0, 0.5, 1.0 };	end
 		if (quality == 4)	then	self.itemTextColor = { 0.7, 0.3, 1.0 };	end
 	end
 
 end
+
 
 
 -----------------------------------------
@@ -188,8 +240,9 @@ function AtrSearch:NumScans()
 		return #self.sortedScans;
 	end
 
+	local idstr,scn;
 	local count = 0;
-	for name,scn in pairs (self.items) do
+	for idstr,scn in pairs (self.items) do
 		count = count + 1;
 	end
 
@@ -215,12 +268,12 @@ function AtrSearch:GetFirstScan()
 		return self.sortedScans[1];
 	end
 
-	for name,scn in pairs (self.items) do
+	local idstr,scn;
+	for idstr,scn in pairs (self.items) do
 		return scn;
 	end
 	
-	return nil;
-
+	return nil
 end
 
 
@@ -232,6 +285,8 @@ function AtrSearch:Start ()
 		return;
 	end
 	
+	
+	
 	if (Atr_IsCompoundSearch (self.searchText)) then
 			
 		local _, itemClass = Atr_ParseCompoundSearch (self.searchText);
@@ -241,11 +296,49 @@ function AtrSearch:Start ()
 			return;
 		end
 
-		self.sortHow = ATR_SORTBY_PRICE_DES;
-
+		self.sortHow = ATR_SORTBY_PRICE_ASC;
 	end
+
+	-- make sure all the matches in the scan db are in memory
+	
+	local numpulled = 0;
+	
+	if (self.exactMatchtext == nil and not self.IDstring and not Atr_IsCompoundSearch (self.searchText) and string.len(self.searchText) > 2) then
+		local name, info, itemLink;
+		for name, info in pairs(gAtr_ScanDB) do
+			if (zc.StringContains (name, self.searchText)) then
+				if (type(info) == "table" and info.id) then
+					local itemID, suffixID = strsplit(":", info.id);
+					if (suffixID == nil) then		-- for now; seems problematic for many green "of the" items
+						itemLink = zc.PullItemIntoMemory (itemID, suffixID);
+						numpulled = numpulled + 1;
+					end
+				end
+			end
+		end
+	end
+
+	-- make sure all the items in the shopping list are in memory
+	
+	if (self.shplist) then
+		local n
+		for n = 1,self.shplist:GetNumItems() do
+			local itemname = zc.TrimQuotes(self.shplist:GetNthItemName (n))
+			local dbInfo = gAtr_ScanDB[itemname]
+			if (dbInfo and dbInfo.id) then
+				zc.PullItemIntoMemory (dbInfo.id);
+				numpulled = numpulled + 1;
+			end
+		end
+	end
+
+	gNumNilItemLinks = 0
 	
 	self.processing_state = KM_SETTINGSORT;
+	
+	if (Atr_ILevelHist_Init) then
+		Atr_ILevelHist_Init()
+	end
 	
 	SortAuctionClearSort ("list");
 
@@ -294,25 +387,48 @@ function AtrSearch:AnalyzeResultsPage()
 
 	self.processing_state = KM_ANALYZING;
 
-	if (self.query.numDupPages > 10) then 	 -- hopefully this will never happen but need check to avoid looping
+	if (self.query.numDupPages > 50) then 	 -- hopefully this will never happen but need check to avoid looping
 		return true;						 -- done
 	end
 
 
-	local numBatchAuctions, totalAuctions = GetNumAuctionItems("list");
+	local numBatchAuctions, totalAuctions = Atr_GetNumAuctionItems("list");
 
-	if (self.current_page == 1 and totalAuctions > 3000) then -- give Blizz servers a break
+	if (self.current_page == 1 and totalAuctions > 9999) then -- give Blizz servers a break
 		Atr_Error_Display (ZT("Too many results\n\nPlease narrow your search"));
 		return true;  -- done
 	end
 
-	if (totalAuctions >= 50) then
-		Atr_SetMessage (string.format (ZT("Scanning auctions: page %d"), self.current_page));
+	local msg
+
+	local slistItemName = Atr_GetShoppingListItem (self)
+	local TotalPages = math.ceil(totalAuctions / 50)
+	if (slistItemName) then
+	
+		local pageText = "";
+		if (self.current_page > 1) then
+			-- pageText = string.format (ZT(": page %d"), self.current_page)
+			pageText = string.format (ZT(": page %d of %.0f"), self.current_page, TotalPages)
+		else
+			pageText = "..."
+		end
+
+		msg = string.format (ZT("Scanning auctions for %s%s"), slistItemName, pageText);
+	elseif (totalAuctions >= 50) then
+		-- msg = string.format (ZT("Scanning auctions: page %d"), self.current_page);
+		msg = string.format (ZT("Scanning auctions: page %d of %.0f"), self.current_page, TotalPages);
 	end
+
+	if (msg) then
+		Atr_SetMessage (msg)
+	end
+
+	--zz (slistItemName, "current_page: ", self.current_page, "numBatchAuctions: ", numBatchAuctions)
 
 	-- analyze
 
-	local numNilOwners = 0;
+	local k, g, f
+	local numNilOwners = 0
 
 	if (numBatchAuctions > 0) then
 
@@ -322,56 +438,74 @@ function AtrSearch:AnalyzeResultsPage()
 
 			local name, texture, count, quality, canUse, level, minBid, minIncrement, buyoutPrice, bidAmount, highBidder, owner = GetAuctionItemInfo("list", x);
 
-			if (owner == nil) then
-				numNilOwners = numNilOwners + 1;
-			end
+			local itemLink = GetAuctionItemLink("list", x);
 			
-			local exactMatch = zc.StringSame (name, self.searchText);
-
-			if (exactMatch or not self.exact) then
-
-				if (self.items[name] == nil) then
-					self.items[name] = Atr_FindScanAndInit (name);
-                    self.items[name].texture = texture
-				end
-                if self.items[name].texture and texture ~= self.items[name].texture then
-                    name = name .. " "
-                    if (self.items[name] == nil) then
-                        self.items[name] = Atr_FindScanAndInit (name);
-                        self.items[name].texture = texture
-                    end
-                end
-                
-				local curpage = (tonumber(self.current_page)-1);
-
-				local scn = self.items[name];
-
-				scn:AddScanItem (name, count, buyoutPrice, owner, 1, curpage);
+			if (itemLink) then
+				local IDstring = zc.ItemIDStrfromLink (itemLink);
 				
-				if (scn.itemLink == nil or self.itemClass == nil) then
-					scn:UpdateItemLink (GetAuctionItemLink("list", x));
-				end
-
-				if (self.callback) then
-					self.callback (x, numBatchAuctions, count, buyoutPrice, owner);
+				if (Atr_ILevelHist_Update) then
+					Atr_ILevelHist_Update(itemLink)
 				end
 				
+				local OKitemLevel = true
+				if (self.minItemLevel or self.maxItemLevel) then
+					local _, _, _, iLevel, _ = GetItemInfo(itemLink);
+					if ((self.minItemLevel and iLevel < self.minItemLevel) or (self.maxItemLevel and iLevel > self.maxItemLevel)) then
+						OKitemLevel = false
+					end
+				end
+				
+				if (OKitemLevel) then
+					if (owner == nil) then
+						numNilOwners = numNilOwners + 1
+					end
+
+					if (self.exactMatchText == nil or zc.StringSame (name, self.exactMatchText)) then
+
+						if (self.items[IDstring] == nil) then
+							self.items[IDstring] = Atr_FindScanAndInit (IDstring, name)
+						end
+						
+						local curpage = (tonumber(self.current_page)-1)
+
+						local scn = self.items[IDstring]
+
+						if (scn) then
+							scn:AddScanItem (count, buyoutPrice, owner, 1, curpage)
+							scn:UpdateItemLink (itemLink)
+						end
+					end
+				end
+			else
+				gNumNilItemLinks = gNumNilItemLinks + 1
 			end
 		end
 	end
 	
 	local done = (numBatchAuctions < 50);
 
+	if (done) then
+		if (self.shplist) then
+			self.shopListIndex = self.shopListIndex + 1
+			local nextSearchItem = Atr_GetShoppingListItem (self)
+			if (nextSearchItem) then
+				self.current_page		= 0
+				self.exactMatchText		= nil
+				done = false
+			end
+		end
+	end
+
 	if (not done) then
 		self.processing_state = KM_PREQUERY;
 	end
-	
+
 	return done;
 end
 
 -----------------------------------------
 
-function AtrScan:AddScanItem (name, stackSize, buyoutPrice, owner, numAuctions, curpage)
+function AtrScan:AddScanItem (stackSize, buyoutPrice, owner, numAuctions, curpage)
 
 	local sd = {};
 	local i;
@@ -388,10 +522,10 @@ function AtrScan:AddScanItem (name, stackSize, buyoutPrice, owner, numAuctions, 
 
 		tinsert (self.scanData, sd);
 		
-		if (buyoutPrice) then
+		if (buyoutPrice and buyoutPrice > 0) then
 			local itemPrice = math.floor (buyoutPrice / stackSize);
 
-			Atr_AddToLowPrices (self.lowprices, itemPrice);
+			self.lowprice = math.min (self.lowprice, itemPrice);
 		end
 	end
 
@@ -400,84 +534,7 @@ end
 
 -----------------------------------------
 
-function AtrScan:AddSDXToScan (price, owner, volume)	-- helper function for AddExternalDataToScan
-
-	local sd = {};
-
-	if (price and price > 0) then
-		sd["stackSize"]		= 1;
-		sd["buyoutPrice"]	= price;
-		sd["owner"]			= owner;
-
-		if (volume) then
-			sd["volume"] = volume;
-		end
-
-		tinsert (self.scanData, sd);
-	end
-	
-end
-
------------------------------------------
-
-function AtrScan:AddExternalDataToScan ()
-
-	if (self.itemLink == nil) then
-		return;
-	end
-
-	-- Wowecon
-
-	if (Wowecon and Wowecon.API) then
-	
-		local priceG, volG = Wowecon.API.GetAuctionPrice_ByLink (self.itemLink, Wowecon.API.GLOBAL_PRICE)
-		local priceS, volS = Wowecon.API.GetAuctionPrice_ByLink (self.itemLink, Wowecon.API.SERVER_PRICE)
-
-		self:AddSDXToScan (priceG, "__wowEconG", volG);
-		self:AddSDXToScan (priceS, "__wowEconS", volS);
-		
-	end
-	
-	-- GoingPrice Wowhead
-	
-	local id = zc.ItemIDfromLink (self.itemLink);
-	
-	id = tonumber(id);
-
-	if (GoingPrice_Wowhead_Data and GoingPrice_Wowhead_Data[id] and GoingPrice_Wowhead_SV._index) then
-		local index = GoingPrice_Wowhead_SV._index["Buyout price"];
-
-		if (index ~= nil) then
-			local price = GoingPrice_Wowhead_Data[id][index];
-		
-			self:AddSDXToScan (price, "__wowHead");
-		end
-	end
-
-	-- GoingPrice Allakhazam
-	
-	if (GoingPrice_Allakhazam_Data and GoingPrice_Allakhazam_Data[id] and GoingPrice_Allakhazam_SV._index) then
-		local index = GoingPrice_Allakhazam_SV._index["Median"];
-
-		if (index ~= nil) then
-			local price = GoingPrice_Allakhazam_Data[id][index];
-		
-			self:AddSDXToScan (price, "__allakhazam");
-		end
-	end
-
-	-- most recent historical price
-	
-	local price = Atr_Process_Historydata();
-	if (price ~= nil) then
-		self:AddSDXToScan (price, "__atrLast");
-	end
-
-end
-
------------------------------------------
-
-function AtrScan:SubtractScanItem (name, stackSize, buyoutPrice)
+function AtrScan:SubtractScanItem (stackSize, buyoutPrice)
 
 	local sd;
 	local i;
@@ -493,11 +550,64 @@ function AtrScan:SubtractScanItem (name, stackSize, buyoutPrice)
 
 end
 
+
+-----------------------------------------
+
+function Atr_IsShoppingListSearch (searchString)
+	
+	if (searchString == nil) then
+		return false;
+	end
+	
+	return zc.StringStartsWith (searchString, "{ ") and zc.StringEndsWith (searchString, " }");
+end
+
+-----------------------------------------
+
+function Atr_GetShoppingListFromSearchText (searchString)
+
+	if (Atr_IsShoppingListSearch (searchString)) then
+		local len = string.len(searchString);
+
+		local shoppingListName = string.sub (searchString, 3, len-2);
+		
+		return Atr_SList.FindByName (shoppingListName);
+	end
+	
+	return nil
+end
+
+-----------------------------------------
+
+function Atr_GetShoppingListItem (search)
+
+	if (search.shplist) then
+		return search.shplist:GetNthItemName (search.shopListIndex);
+	end
+	
+	return nil;
+end
+
 -----------------------------------------
 
 function Atr_IsCompoundSearch (searchString)
 	
+	if (searchString == nil) then
+		return false;
+	end
+	
 	return zc.StringContains (searchString, ">") or zc.StringContains (searchString, "/");
+end
+
+-----------------------------------------
+
+local function toItemLevel (s)		-- returns nil if not of the form i72 or i277, etc
+
+	if (string.len(s) > 1 and string.sub(s,1,1) == "i") then
+		return tonumber (string.sub(s,2))
+	end
+	
+	return nil
 end
 
 -----------------------------------------
@@ -517,19 +627,37 @@ function Atr_ParseCompoundSearch (searchString)
 	local itemSubclass	= 0;
 	local minLevel		= nil;
 	local maxLevel		= nil;
+	local minItemLevel	= nil;
+	local maxItemLevel	= nil;
 	local prevWasItemClass;
+	local qualityIndex;
 	local n;
 	
 	for n = 1,#tbl do
 		local s = tbl[n];
-
 		local handled = false;
-
+	
+		if (n == 1) then		
+			qualityIndex = Atr_ItemRariryText2QualityIndex(s)
+			if (qualityIndex ~= nil) then handled = true end
+		end
+	
 		if (not handled and tonumber(s)) then
 			if (minLevel == nil) then
 				minLevel = tonumber(s);
 			elseif (maxLevel == nil) then
 				maxLevel = tonumber(s);
+			end
+			
+			handled = true;
+			prevWasItemClass = false;
+		end
+	
+		if (not handled and toItemLevel(s)) then
+			if (minItemLevel == nil) then
+				minItemLevel = toItemLevel(s);
+			elseif (maxItemLevel == nil) then
+				maxItemLevel = toItemLevel(s);
 			end
 			
 			handled = true;
@@ -560,7 +688,23 @@ function Atr_ParseCompoundSearch (searchString)
 		end
 	end	
 
-	return queryString, itemClass, itemSubclass, minLevel, maxLevel;
+	--QueryAuctionItems("name", minLevel, maxLevel, invTypeIndex, classIndex, subclassIndex, page, isUsable, qualityIndex, getAll)
+	return queryString, itemClass, itemSubclass, minLevel, maxLevel, minItemLevel, maxItemLevel, qualityIndex
+end
+
+-----------------------------------------
+
+function Atr_ItemRariryText2QualityIndex(itemRarity)
+
+	local Rarity2Quality = {[0] = "Poor", [1] = "Common", [2] = "Uncommon",[3] = "Rare", [4] = "Epic"}
+	for RarityIndex, RariryString in pairs(Rarity2Quality) do
+		if (zc.StringSame (RariryString, itemRarity)) then
+			return RarityIndex
+		end
+	end
+	
+	return nil
+
 end
 
 -----------------------------------------
@@ -571,33 +715,52 @@ function AtrSearch:Continue()
 
 		self.processing_state = KM_IN_QUERY;
 
-		local queryString = self.searchText;
+		local queryString;
 
---	zc.md (queryString.."  page:"..self.current_page);
-		
 		local itemClass		= 0;
 		local itemSubclass	= 0;
 		local minLevel		= nil;
 		local maxLevel		= nil;
+		local qualityIndex 	= nil;
 		
-		if (self.exact) then
-			local scn = self:GetFirstScan();
-			itemClass		= scn.itemClass;
-			itemSubclass	= scn.itemSubclass;
-		end
+		if (Atr_IsCompoundSearch(self.searchText)) then
+			queryString, itemClass, itemSubclass, minLevel, maxLevel, _, _, qualityIndex = Atr_ParseCompoundSearch (self.searchText);
+			
+		elseif (self.shplist) then
+			queryString = Atr_GetShoppingListItem (self)
+			
+			self.exactMatchText = GetExactMatchText(queryString)
+			if (self.exactMatchText) then
+				queryString = self.exactMatchText
+			end
 
-		if (Atr_IsCompoundSearch(queryString)) then
-		
-			queryString, itemClass, itemSubclass, minLevel, maxLevel = Atr_ParseCompoundSearch (queryString);
-		
+
+			-- skip nested shopping lists or compound searches
+			while (Atr_IsShoppingListSearch(queryString) or Atr_IsCompoundSearch(queryString)) do
+				zc.md ("Skipping ", queryString);
+				self.shopListIndex = self.shopListIndex + 1
+				queryString = Atr_GetShoppingListItem (self)
+				if (queryString == nil) then
+					break
+				end
+			end
+			
+			if (queryString == nil) then
+				queryString = "?????";
+			end
+		else
+			queryString = self.searchText;
 		end
 
 		queryString = zc.UTF8_Truncate (queryString,63);	-- attempting to reduce number of disconnects
 
-		QueryAuctionItems (queryString, minLevel, maxLevel, nil, itemClass, itemSubclass, self.current_page, nil, nil);
+		--zz (queryString, "  page:", self.current_page);
+		
+		QueryAuctionItems (queryString, minLevel, maxLevel, 0, itemClass, itemSubclass, self.current_page, 0, qualityIndex);
 
 		self.query_sent_when	= gAtr_ptime;
 		self.processing_state	= KM_POSTQUERY;
+
 		self.current_page		= self.current_page + 1;
 	end
 
@@ -628,21 +791,86 @@ end
 -----------------------------------------
 
 function AtrSearch:Finish()
-
 	local finishTime = time();
 	
 	self.processing_state	= KM_NULL_STATE;
 	self.current_page		= -1;
 	self.query_sent_when	= nil;
+
+	-- add scans for items that weren't found (at least for items that are in the scan db)
+	
+	if (self.exactMatchText == nil and not self.IDstring) then
+		if (not Atr_IsCompoundSearch (self.searchText)) then
+			local name, info;
+			for name, info in pairs(gAtr_ScanDB) do
+				if (zc.StringContains (name, self.searchText)) then
+					if (info.id and self.items[info.id] == nil) then
+						local itemID, suffixID = strsplit(":", info.id);
+						if (suffixID == nil) then		-- for now; seems problematic for many green "of the" items
+							self.items[info.id] = Atr_FindScanAndInit (info.id, name);
+							local itemLink = zc.LinkFromItemID (itemID, suffixID);
+							if (itemLink) then
+								self.items[info.id]:UpdateItemLink (itemLink)
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	-- add scans for items in the shopping list that weren't found
+	
+	if (self.shplist) then
+		local n
+		for n = 1,self.shplist:GetNumItems() do
+			local itemname = zc.TrimQuotes(self.shplist:GetNthItemName (n))
+			
+			local dbInfo = gAtr_ScanDB[itemname]
+			if (dbInfo and dbInfo.id) then
+				local IDstring = dbInfo.id
+				if (self.items[IDstring] == nil) then
+					self.items[IDstring] = Atr_FindScanAndInit (IDstring, itemname)
+					local itemLink = zc.LinkFromItemID (IDstring);
+					if (itemLink) then
+						self.items[IDstring]:UpdateItemLink (itemLink)
+					end
+				end
+			else		-- not in scandb
+			-- don't want the blanks on result page
+				--local IDstring = "***"..itemname				
+				--self.items[IDstring] = Atr_FindScanAndInit (IDstring, itemname)
+			end
+		end
+	end
+
+	-- create an empty scan if there were no matches
 	
 	self.sortedScans = nil;
 	
-	local wasExactSearch = (self:NumScans() == 1);		-- search returned only 1 item
+	if (self:NumScans() == 0) then
+
+		local dbInfo = gAtr_ScanDB[self.searchText]
+		
+		if (dbInfo and dbInfo.id) then	-- so that we see the history tab, etc.
+			local IDstring = dbInfo.id;
+			self.items[IDstring] = Atr_FindScan (IDstring, self.searchText, true);
+		else
+			self.items["0"] = Atr_FindScan (nil);
+		end
+	
+	end
+	
+	-- process the scans
+	
+	local broadcastInfo = {};
 	
 	local x = 1;
 	self.sortedScans = {};
 	
-	for name,scn in pairs (self.items) do
+
+	
+	for IDstring,scn in pairs (self.items) do
 	
 		self.sortedScans[x] = scn;
 		x = x + 1;
@@ -653,21 +881,37 @@ function AtrSearch:Finish()
 		scn:CondenseAndSort ();
 
 		-- update the fullscan DB
+
+		if (scn.lowprice < BIGNUM) then
 		
-		local newprice = Atr_CalcNewDBprice (scn.itemName, scn.lowprices);
-		
-		if (newprice > 0) then
-			if (scn.itemQuality + 1 >= AUCTIONATOR_SCAN_MINLEVEL) then
-				gAtr_ScanDB[scn.itemName] = newprice;
+			if (scn.itemQuality == nil) then
+				zc.msg_anm ("|cffff0000Error: scn.itemQuality == nil, scn.itemName: ", scn.itemName);
+			end
+			
+			if (scn.itemQuality ~= nil and (scn.itemQuality + 1 >= AUCTIONATOR_SCAN_MINLEVEL or scn.quality == -1)) then		--  battle pets can be UNKNOWN (-1) quality
+								
+				Atr_UpdateScanDBprice		(scn.itemName, scn.lowprice);
+				Atr_UpdateScanDBclassInfo	(scn.itemName, scn.itemClass, scn.itemSubclass);
+				Atr_UpdateScanDBitemID		(scn.itemName, scn.itemLink);
+				
+				table.insert (broadcastInfo, {i=scn.IDstring, p=scn.lowprice});
 			end
 		end
 	end
+
+	if (gNumNilItemLinks > 0) then
+		zc.msg_anm ("Number of nil links found during scan: ", gNumNilItemLinks)
+	end
+
+	Atr_Broadcast_DBupdated (#broadcastInfo, "partialscan", broadcastInfo);
+
+	if (Atr_ILevelHist_Print) then
+		Atr_ILevelHist_Print()
+	end
 	
-	Atr_ClearBrowseListings();
 	
 	gSortScansBy = self.sortHow;
 	table.sort (self.sortedScans, Atr_SortScans);
-	
 end
 
 -----------------------------------------
@@ -708,16 +952,16 @@ function AtrSearch:UpdateArrows()
 	
 	if (self.sortHow == ATR_SORTBY_PRICE_ASC) then
 		Atr_Col1_Heading_ButtonArrow:Show();
-		Atr_Col1_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 0, 1.0);
+		Atr_Col1_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 1.0, 0);
 	elseif (self.sortHow == ATR_SORTBY_PRICE_DES) then
 		Atr_Col1_Heading_ButtonArrow:Show();
-		Atr_Col1_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 1.0, 0);
+		Atr_Col1_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 0, 1.0);
 	elseif (self.sortHow == ATR_SORTBY_NAME_ASC) then
 		Atr_Col3_Heading_ButtonArrow:Show();
-		Atr_Col3_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 0, 1.0);
+		Atr_Col3_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 1.0, 0);
 	elseif (self.sortHow == ATR_SORTBY_NAME_DES) then
 		Atr_Col3_Heading_ButtonArrow:Show();
-		Atr_Col3_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 1.0, 0);
+		Atr_Col3_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 0, 1.0);
 	end
 end
 
@@ -725,15 +969,12 @@ end
 
 function Atr_ClearBrowseListings()
 	
-	local start = time();
 
-	while (time() - start < 5) do
-	
-		if (CanSendAuctionQuery()) then
-			QueryAuctionItems("xyzzy", 43, 43, 0, 7, 0);
-			break;
-		end
+	if (CanSendAuctionQuery()) then
+		QueryAuctionItems("xyzzy", 43, 43, 0, 7, 0);
+		zz ("Atr_ClearBrowseListings succeeded");
 	end
+
 
 end
 
@@ -765,16 +1006,6 @@ function AtrScan:CondenseAndSort ()
 			ownerCode = "y";
 --		elseif (Atr_IsMyToon (sd.owner)) then
 --			ownerCode = sd.owner;
-		elseif (sd.owner == "__wowEconG") then
-			dataType = "eg";
-		elseif (sd.owner == "__wowEconS") then
-			dataType = "es";
-		elseif (sd.owner == "__wowHead") then
-			dataType = "h";
-		elseif (sd.owner == "__allakhazam") then
-			dataType = "k";
-		elseif (sd.owner == "__atrLast") then
-			dataType = "a";
 		end
 
 		local key = "_"..sd.stackSize.."_"..sd.buyoutPrice.."_"..ownerCode..dataType;
@@ -840,7 +1071,6 @@ function AtrScan:AnalyzeSortData ()
 	self.hasStack				= false;
 	self.yourBestPrice			= nil;
 	self.yourWorstPrice			= nil;
-	self.numYourSingletons		= 0;
 
 	local j, sd;
 
@@ -873,9 +1103,6 @@ function AtrScan:AnalyzeSortData ()
 						self.yourWorstPrice = sd.itemPrice;
 					end
 					
-					if (sd.stackSize == 1) then
-						self.numYourSingletons = self.numYourSingletons + sd.count;
-					end
 				end
 			end
 
@@ -997,25 +1224,6 @@ function AtrScan:IsNil ()
 	return false;
 end
 
------------------------------------------
-
-ATR_FS_NULL			= 0;
-ATR_FS_STARTED		= 1;
-ATR_FS_ANALYZING	= 2;
-ATR_FS_CLEANING_UP	= 3;
-
-ATR_FSS_NULL		= 0;
-
-gAtr_FullScanState		= ATR_FS_NULL;
-gAtr_FullScanSubState	= ATR_FSS_NULL;
-
-local gAtr_FullScanIsSlowScan;
-
-local gAtr_SlowScanClass = nil;
-local gAtr_SlowScanSubClass = nil;
-
-local gAtr_FullScanStart;
-local gAtr_FullScanDur;
 
 -----------------------------------------
 
@@ -1034,362 +1242,381 @@ end
 
 -----------------------------------------
 
-local gNumAdded, gNumUpdated;
+function Atr_UpdateScanDBitemID (itemName, itemLink)
 
+	if (itemLink == nil) then
+		return;
+	end
+	
+	if (not gAtr_ScanDB[itemName]) then
+		gAtr_ScanDB[itemName] = {};
+	end
+
+	gAtr_ScanDB[itemName].id = zc.ItemIDStrfromLink (itemLink);
+end
+	
 -----------------------------------------
 
-function Atr_FullScanStart()
+function Atr_UpdateScanDBclassInfo (itemName, class, subclass)
 
-	local gAtr_FullScanIsSlowScan = false;
---	local gAtr_FullScanIsSlowScan = Atr_FullScan_Slow:GetChecked();
---	zc.md (gAtr_FullScanIsSlowScan);
-	
-	local canQuery,canQueryAll = CanSendAuctionQuery();
-	
-	if (canQueryAll or gAtr_FullScanIsSlowScan) then
-	
-		Atr_FullScanStatus:SetText (ZT("Scanning").."...");
-		Atr_FullScanStartButton:Disable();
-		Atr_FullScanDone:Disable();
-		
-		gAtr_FullScanStart = time();
-		gAtr_FullScanDur   = nil;
-		
-		SortAuctionClearSort ("list");
-
-		gNumAdded = 0;
-		gNumUpdated = 0;
-
-		if (gAtr_FullScanIsSlowScan) then
-			gAtr_SlowScanClass = nil;
-			gAtr_SlowScanSubClass = nil;
-		else
-			QueryAuctionItems ("", nil, nil, 0, 0, 0, 0, 0, 0, true);
-		end
-        gAtr_FullScanState = ATR_FS_STARTED;
+	if (not gAtr_ScanDB[itemName]) then
+		gAtr_ScanDB[itemName] = {};
 	end
+
+	gAtr_ScanDB[itemName].cc = class;
+	gAtr_ScanDB[itemName].sc = subclass;
+
+--	zc.md ("Setting class info for:", itemName, "    ", class, subclass);
 
 end
 
 -----------------------------------------
 
-function Atr_CalcNewDBprice (name, prices)
-		
-	if (prices[1] ~= BIGNUM) then
-		return prices[1];
+function Atr_UpdateScanDBprice (itemName, currentLowPrice, db)
+
+	if (currentLowPrice == nil) then
+		zc.msg_badErr ("currentLowPrice in NIL!!!!!!", itemName)
+--		zc.printstack()
+		return
 	end
 
-	return 0;
+	if (type(currentLowPrice) ~= "number") then
+		zc.msg_badErr ("currentLowPrice in not a number !!!!!!", type(currentLowPrice), itemName)
+--		zc.printstack()
+		return
+	end
+
+	if (db == nil) then
+		db = gAtr_ScanDB;
+	end
+
+	if (db and type (db) ~= "table") then
+		zc.msg_badErr ("Scanning history database appears to be corrupt")
+		zc.msg_badErr ("db:", db)
+		return nil
+	end
+
+	if (not db[itemName]) then
+		db[itemName] = {};
+	end
+
+	db[itemName].mr = currentLowPrice;
+	db[itemName].lastScan = time();
 	
+	local daysSinceZero = Atr_GetScanDay_Today();
+
+	local lowlow  = db[itemName]["L"..daysSinceZero];
+	local highlow = db[itemName]["H"..daysSinceZero];
+
+	local olow	= lowlow;
+	local ohigh = highlow;
+	
+	if (highlow == nil or currentLowPrice > highlow) then
+		db[itemName]["H"..daysSinceZero] = currentLowPrice;
+		highlow = currentLowPrice;
+	end
+
+	-- save memory by only saving lowlow when different from highlow
+	
+	local isLowerThanLow		= (lowlow ~= nil and currentLowPrice < lowlow);
+	local isNewAndDifferent		= (lowlow == nil and currentLowPrice < highlow);
+	
+	if (isLowerThanLow or isNewAndDifferent) then
+		db[itemName]["L"..daysSinceZero] = currentLowPrice;
+--		zz (itemName, "currentLowPrice:", currentLowPrice, "highlow:", highlow, "lowlow:", lowlow, "ohigh:", ohigh, "olow:", olow);
+	end
+
+	if (db[itemName]["po"]) then	-- unmark this item so it isn't purged
+		db[itemName]["po"] = nil;
+	end
 end
 
 -----------------------------------------
 
-function Atr_AddToLowPrices (lowprices, itemPrice)
+function Atr_PurgeObsoleteItems ()
+
+	-- one time removal of old items - called after a full scan
+
+	local a = 0
+	local b = 0
+	local potentials = 0;
+	local doPurge, mostRecentDay, key, price, name, itemInfo
 	
-	if (itemPrice > 0) then
-		if (itemPrice < lowprices[1]) then
-			if (lowprices[1] < lowprices[2]) then
-				lowprices[2] = lowprices[1];
+	local todayDay	= Atr_GetScanDay_Today()
+	
+	for name, itemInfo in pairs (gAtr_ScanDB) do
+		
+		doPurge = false;
+		
+		if (type(itemInfo) == "table") then
+
+			mostRecentDay = -1
+
+			for key, price in pairs (itemInfo) do
+				char1 = string.sub (key, 1, 1)
+				if (char1 == "H") then
+					day = tonumber (string.sub(key, 2))
+					mostRecentDay	= math.max (day, mostRecentDay)
+				end
 			end
-			lowprices[1] = itemPrice;
-			return true;
-		elseif (itemPrice < lowprices[2]) then
-			lowprices[2] = itemPrice;
-			return true;
+
+			if (itemInfo["po"]) then
+				potentials = potentials + 1;
+			end
+			
+			if (itemInfo["po"] and todayDay - mostRecentDay > 10) then
+				doPurge = true;
+			end
 		end
+		
+		if (doPurge) then
+			gAtr_ScanDB[name] = nil
+			a = a + 1
+		end
+		
+		b = b + 1
 	end
 
-	return false;
-end
-
-
-
-
------------------------------------------
-
-local gScanDetails = {}
-
------------------------------------------
-
-function Atr_FullScanMoreDetails ()
-
-	local minutes = math.floor (gAtr_FullScanDur/60);
-	local seconds = gAtr_FullScanDur - (minutes * 60);
-
-	zc.msg (" ");
-	zc.msg_atr (string.format ("Scan complete (%d:%02d)", minutes, seconds));
-	zc.msg_atr (ZT("Auctions scanned")..": |cffffffff", gScanDetails.numBatchAuctions, " |r("..gScanDetails.totalItems, "items)");
-	zc.msg_atr ("|cffa335ee   "..ZT("Epic items")..": |r",		gScanDetails.numEachQual[5]);
-	zc.msg_atr ("|cff0070dd   "..ZT("Rare items")..": |r",		gScanDetails.numEachQual[4]);
-	zc.msg_atr ("|cff1eff00   "..ZT("Uncommon items")..": |r",	gScanDetails.numEachQual[3]);
-	zc.msg_atr ("|cffffffff   "..ZT("Common items")..": |r",		gScanDetails.numEachQual[2]);
-	zc.msg_atr ("|cff9d9d9d   "..ZT("Poor items")..": |r",		gScanDetails.numEachQual[1]);
-	
-	
-	if (gScanDetails.numRemoved[4] > 0) then		zc.msg_atr (ZT("Rare items").." "..ZT("removed from database")..": |cffffffff",		gScanDetails.numRemoved[4]);		end
-	if (gScanDetails.numRemoved[3] > 0) then		zc.msg_atr (ZT("Uncommon items").." "..ZT("removed from database")..": |cffffffff",	gScanDetails.numRemoved[3]);		end
-	if (gScanDetails.numRemoved[2] > 0) then		zc.msg_atr (ZT("Common items").." "..ZT("removed from database")..": |cffffffff",	gScanDetails.numRemoved[2]);		end
-	if (gScanDetails.numRemoved[1] > 0) then		zc.msg_atr (ZT("Poor items").." "..ZT("removed from database")..": |cffffffff",		gScanDetails.numRemoved[1]);		end
-	
-	zc.msg_atr (ZT("Items added to database")..": |cffffffff", gScanDetails.gNumAdded);
-	zc.msg_atr (ZT("Items updated in database")..": |cffffffff", gScanDetails.gNumUpdated);
-	zc.msg_atr (ZT("Items ignored")..": |cffffffff", gScanDetails.totalItems - (gScanDetails.gNumAdded + gScanDetails.gNumUpdated));
-	zc.msg (" ");
+--	zz ("potentials:", potentials);
+--	zz ("purged:", a, "out of", b)
 end
 
 -----------------------------------------
 
-function Atr_FullScanAnalyze()
+function Atr_PrunePostDB()
 
-	gAtr_FullScanState = ATR_FS_ANALYZING;
+	-- remove old items from the posting history database
 
-	Atr_FullScanStatus:SetText (ZT("Processing"));
+	if (AUCTIONATOR_PRICING_HISTORY == nil) then
+		return;
+	end
+
+	local now = time();
+	local x = 0;
+	local total = 0;
 	
+	local tempDB = {};
+	zc.CopyDeep (tempDB, AUCTIONATOR_PRICING_HISTORY);
 
-	local numBatchAuctions, totalAuctions = GetNumAuctionItems("list");
+	for itemName, info in pairs(tempDB) do
 
-	zc.md ("FULL SCAN:"..numBatchAuctions.." out of  "..totalAuctions)
+		local recentWhen = 0;
+		local tag, hist;
+		
+		for tag, hist in pairs (info) do
+			if (tag ~= "is") then
+				local when, type, price = ParseHist (tag, hist);
 
-	local lowprices = {};
-	local x;
+				if (when > recentWhen) then
+					recentWhen  = when;
+				end
+			end
+		end
+		
+		if (now - recentWhen > 180 * 86400) then
+			AUCTIONATOR_PRICING_HISTORY[itemName] = nil;
+			--zc.md (itemName, "   ", date("%A, %B %d %Y", recentWhen));
+			x = x + 1;
+		end
+		
+		total = total + 1;
+	end
 	
-	local qualities = {};
+	collectgarbage  ("collect");
 	
-	if (numBatchAuctions > 0) then
+	if (x > 0) then
+		zc.md (x, "of", total, "items pruned from post DB");
+	end
+end
 
-		for x = 1, numBatchAuctions do
+-----------------------------------------
 
-			local name, texture, count, quality, canUse, level, minBid, minIncrement, buyoutPrice = GetAuctionItemInfo("list", x);
+function Atr_MigtrateMaxHistAge()		-- 21 was too much
+
+	if (AUCTIONATOR_DB_MAXHIST_AGE and AUCTIONATOR_DB_MAXHIST_AGE ~= 21 and AUCTIONATOR_DB_MAXHIST_AGE ~= -1) then
+		zz ("AUCTIONATOR_DB_MAXHIST_AGE:", AUCTIONATOR_DB_MAXHIST_AGE, "AUCTIONATOR_DB_MAXHIST_DAYS:", AUCTIONATOR_DB_MAXHIST_DAYS)
+		AUCTIONATOR_DB_MAXHIST_DAYS = AUCTIONATOR_DB_MAXHIST_AGE;
+	end
+		
+	AUCTIONATOR_DB_MAXHIST_AGE = -1;
+end
+
+-----------------------------------------
+
+function Atr_PruneScanDB(verbose)
+
+	local start = time();
+
+	collectgarbage  ("collect");
+
+	local startMem = Atr_GetAuctionatorMemString();
+
+	local dbCopy = {};
+
+	local todayDays	= Atr_GetScanDay_Today();
+
+	Atr_MigtrateMaxHistAge();
+
+	local histCutoff	= todayDays - AUCTIONATOR_DB_MAXHIST_DAYS;
+	local itemCutoff	= todayDays - AUCTIONATOR_DB_MAXITEM_AGE;
+	
+	local x = 0;
+	local h = 0;
+	local y = 0;
+	local z = 0;
+	
+	local key, price, char1, day, doCopy;
+
+	if (gAtr_ScanDB and type (gAtr_ScanDB) ~= "table") then
+		zc.msg_badErr ("Scanning history database appears to be corrupt")
+		zc.msg_badErr ("gAtr_ScanDB:", gAtr_ScanDB)
+		return
+	end
+	
+	for itemName, info in pairs (gAtr_ScanDB) do
+	
+		local mostRecentDay = -1;
+		
+		-- first pass over item
+		
+		for key, price in pairs (info) do
+			char1 = string.sub (key, 1, 1);
+			if (char1 == "H") then
+				day = tonumber (string.sub(key, 2));
+				mostRecentDay	= math.max (day, mostRecentDay);
+			end
+		end
+		
+		-- decide if the item should be retained
+		
+		if (mostRecentDay == -1 or mostRecentDay >= itemCutoff) then
+		
+			dbCopy[itemName] = {};
+			y = y + 1;
 			
-			if (name ~= nil and buyoutPrice ~= nil) then
-            
-                if gAtr_MeanDB[name] == nil then
-                    gAtr_MeanDB[name] = {};
-                end
-            	
-                qualities[name] = quality;
-			
-				local itemPrice = math.floor (buyoutPrice / count);
-			
-				if (itemPrice > 0) then
-					if (not lowprices[name]) then
-						lowprices[name] = {BIGNUM,BIGNUM,BIGNUM};		-- one extra for later
+			for key, price in pairs (info) do			-- second pass over item
+				doCopy = true;
+				
+				char1 = string.sub (key, 1, 1);
+				if (char1 == "H" or char1 == "L") then
+					day = tonumber (string.sub(key, 2));
+					if (day < histCutoff and day ~= mostRecentDay) then
+						doCopy = false;
+						h = h + 1;
 					end
-					
-					Atr_AddToLowPrices (lowprices[name], itemPrice);
 				end
-			end
-
-			if (x % 100 == 0) then
-				Atr_FullScanStatus:SetText (ZT("Processing").." ("..x..")");
-			end
-		end
-	end
-
-	local numEachQual = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-	local totalItems = 0;
-	local numRemoved = { 0, 0, 0, 0, 0, 0, 0, 0 };
-	
-	for name,prices in pairs (lowprices) do
-		
-		local newprice = Atr_CalcNewDBprice (name, prices);
-		
-		if (newprice > 0) then
-		
-			local qx = qualities[name] + 1;
-			
-			numEachQual[qx]	= numEachQual[qx] + 1;
-			totalItems		= totalItems + 1;
-			
-			if (qx < AUCTIONATOR_SCAN_MINLEVEL and gAtr_ScanDB[name]) then
-				numRemoved[qx] = numRemoved[qx] + 1;
-				gAtr_ScanDB[name] = nil;
-				zc.md ("removed: |cffbbbbbb", name, "   ("..qx..")");
-			end
-			
-			if (qx >= AUCTIONATOR_SCAN_MINLEVEL) then
-
-				if (gAtr_ScanDB[name] == nil) then
-					gNumAdded = gNumAdded + 1;
-				else
-					gNumUpdated = gNumUpdated + 1;
+				
+				if (doCopy) then
+					dbCopy[itemName][key] = price;
+					z = z + 1;
 				end
-
-				gAtr_ScanDB[name] = newprice;
-                if #gAtr_MeanDB[name] < 15 then
-                    table.insert(gAtr_MeanDB[name], newprice)
-                else
-                    table.remove(gAtr_MeanDB[name], math.random(1, #gAtr_MeanDB[name]))
-                    table.insert(gAtr_MeanDB[name], newprice)
-                end
-			end
-		end
-	end
-    
-    for name in pairs(gAtr_MeanDB) do
-        table.sort(gAtr_MeanDB[name])
-    end
-
-	gScanDetails.numBatchAuctions		= numBatchAuctions;
-	gScanDetails.totalItems				= totalItems;
-	gScanDetails.numEachQual			= numEachQual;
-	gScanDetails.numRemoved				= numRemoved;
-	gScanDetails.gNumAdded				= gNumAdded;
-	gScanDetails.gNumUpdated			= gNumUpdated;
-
-
-	if (Atr_PrintBargains and Atr_CheckForBargain and numBatchAuctions > 0) then
-
-		for x = 1, numBatchAuctions do
-			Atr_CheckForBargain (x);
-		end
-		
-		Atr_PrintBargains();
-	end
-	
-	gAtr_FullScanState = ATR_FS_CLEANING_UP;
-
-	Atr_FullScanMoreDetails();
-
-	Atr_FullScanStatus:SetText (ZT("Cleaning up"));
-
-	Atr_FullScanDone:Enable();
-	Atr_FullScanStatus:SetText ("");
-	
-	Atr_FSR_scanned_count:SetText	(numBatchAuctions);
-	Atr_FSR_added_count:SetText		(gNumAdded);
-	Atr_FSR_updated_count:SetText	(gNumUpdated);
-	Atr_FSR_ignored_count:SetText	(totalItems - (gNumAdded + gNumUpdated));
-	
-	Atr_FullScanHTML:Hide();
-	Atr_FullScanResults:Show();
-	
-	Atr_FullScanResults:SetBackdropColor (0.3, 0.3, 0.4);
-	
-	AUCTIONATOR_LAST_SCAN_TIME = time();
-	
-	Atr_UpdateFullScanFrame ();
-
-	Atr_ClearBrowseListings();
-	
-	lowprices = {};
-	collectgarbage ("collect");
-end
-
------------------------------------------
-
-function Atr_ShowFullScanFrame()
-
-	Atr_FullScanHTML:Show();
-	Atr_FullScanResults:Hide();
-
-	Atr_FullScanFrame:Show();
-	Atr_FullScanFrame:SetBackdropColor(0,0,0,100);
-	
-	Atr_UpdateFullScanFrame();
-	Atr_FullScanStatus:SetText ("");
-
-	local expText = "<html><body>"
-					.."<p>"
-					..ZT("Scanning is entirely optional.")
-					.."<br/><br/>"
-					..ZT("SCAN_EXPLANATION")
-					.."</p>"
-					.."</body></html>"
-					;
-
-
-
-	Atr_FullScanHTML:SetText (expText);
-	Atr_FullScanHTML:SetSpacing (3);
-end
-
------------------------------------------
-
-function Atr_UpdateFullScanFrame()
-
-	Atr_FullScanDBsize:SetText (Atr_GetDBsize());
-	
-	if (AUCTIONATOR_LAST_SCAN_TIME) then
-		Atr_FullScanDBwhen:SetText (date ("%A, %B %d at %I:%M %p", AUCTIONATOR_LAST_SCAN_TIME));
-	else
-		Atr_FullScanDBwhen:SetText (ZT("Never"));
-	end
-
-	local canQuery,canQueryAll = CanSendAuctionQuery();
-
-	if (canQueryAll) then
-		Atr_FullScanStatus:SetText ("");
-		Atr_FullScanStartButton:Enable();
-		Atr_FullScanNext:SetText(ZT("Now"));
-	else	
-		Atr_FullScanStartButton:Disable();
-
-		if (AUCTIONATOR_LAST_SCAN_TIME) then
-			local when = 15*60 - (time() - AUCTIONATOR_LAST_SCAN_TIME);
-		
-			when = math.floor (when/60);
-		
-			if (when == 0) then
-				Atr_FullScanNext:SetText (ZT("in less than a minute"));
-			elseif (when == 1) then
-				Atr_FullScanNext:SetText (ZT("in about one minute"));
-			elseif (when > 0) then
-				Atr_FullScanNext:SetText (string.format (ZT("in about %d minutes"), when));
-			else
-				Atr_FullScanNext:SetText (ZT("unknown"));
 			end
 		else
-			Atr_FullScanNext:SetText (ZT("unknown"));
+			x = x + 1;
 		end
+		
+		
 	end
+
+	zc.ClearTable (gAtr_ScanDB);
+	zc.CopyDeep (gAtr_ScanDB, dbCopy);
+	
+	dbCopy = nil;
+	
+	collectgarbage  ("collect");
+
+	if (verbose or Atr_IsDev) then
+		local endMem = Atr_GetAuctionatorMemString();
+--		zc.msg_anm ("Memory usage went from", startMem, "to", endMem);
+	end
+
+--	zc.md ("Historical prices pruned: ", h, "out of", h+z, "   Items pruned: ", x, "out of", x+y, "   Time taken: ", time() - start);
+	
 end
 
 -----------------------------------------
 
-function Atr_FullScan_GetDurString()
+function Atr_BuildSortedScanHistoryList (itemName)
 
-	local minutes = math.floor (gAtr_FullScanDur/60);
-	local seconds = gAtr_FullScanDur - (minutes * 60);
+	local currentPane = Atr_GetCurrentPane();
+	
+	local todayScanDay = Atr_GetScanDay_Today();
+	
+	-- build the sorted history list
 
-	return string.format ("%d:%02d", minutes, seconds);
+	currentPane.sortedHist = {};
+
+	if (gAtr_ScanDB[itemName]) then
+		local n = 1;
+		local key, highlowprice, char1, day, when;
+		for key, highlowprice in pairs (gAtr_ScanDB[itemName]) do
+		
+			char1 = string.sub (key, 1, 1);
+		
+			if (char1 == "H") then
+
+				day = tonumber (string.sub(key, 2));
+
+				when = gScanHistDayZero + (day *86400);
+
+				local lowlowprice = gAtr_ScanDB[itemName]["L"..day];
+				if (lowlowprice == nil) then
+					lowlowprice = highlowprice;
+				end
+
+				highlowprice = tonumber (highlowprice)
+				lowlowprice  = tonumber (lowlowprice)
+
+				currentPane.sortedHist[n]				= {};
+				currentPane.sortedHist[n].itemPrice		= zc.round ((highlowprice + lowlowprice) / 2);
+				currentPane.sortedHist[n].when			= when;
+				currentPane.sortedHist[n].yours			= true;
+				currentPane.sortedHist[n].type			= "n";
+
+				if (day == todayScanDay) then
+					currentPane.sortedHist[n].whenText = ZT("Today");
+				elseif (day == todayScanDay - 1) then
+					currentPane.sortedHist[n].whenText = ZT("Yesterday");
+				else
+					currentPane.sortedHist[n].whenText = date("%A, %B %d", when);
+				end
+				
+				n = n + 1;
+			end
+		end
+	end
+
+	table.sort (currentPane.sortedHist, Atr_SortHistoryData);
+
+	if (#currentPane.sortedHist > 0) then
+		return currentPane.sortedHist[1].itemPrice;
+	end
+
 end
 
 -----------------------------------------
 
-function Atr_FullScanFrameIdle()
+function Atr_GetScanDay_Today()
 
-	if (gAtr_FullScanState == ATR_FS_STARTED) then
+	return (math.floor ((time() - gScanHistDayZero) / (86400)));
 
-		if (gAtr_FullScanIsSlowScan) then
-			
-		end
-
-		local btext = Atr_FullScanStatus:GetText ();
-		
-		if (btext) then
-			gAtr_FullScanDur = time()- gAtr_FullScanStart;
-			Atr_FullScanStatus:SetText (string.format ("Scanning (%s)", Atr_FullScan_GetDurString()));
-		end
-	end
-
-
-	if (gAtr_FullScanState == ATR_FS_CLEANING_UP) then
-	
-		Atr_FullScanStatus:SetText ("Cleaning up");
-		
-		if (GetNumAuctionItems("list") < 100) then
-			Atr_FullScanStatus:SetText (string.format ("Scan complete (%s)", Atr_FullScan_GetDurString()));
-			PlaySound("AuctionWindowClose");
-			gAtr_FullScanState = ATR_FS_NULL;
-		end
-	end
-	
 end
 
+-----------------------------------------
 
+function Atr_GetNumAuctionItems (which)
 
+	local numBatchAuctions, totalAuctions = GetNumAuctionItems(which);
+	
+	local returnTotalAuctions = totalAuctions
+	
+	if (totalAuctions > 500000 or totalAuctions < 0) then
+		totalAuctions = numBatchAuctions;
+	end
+	
+	return numBatchAuctions, totalAuctions, returnTotalAuctions
+
+end
 
 
 

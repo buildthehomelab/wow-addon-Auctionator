@@ -2,16 +2,18 @@ function AtrBuildLTable_enUS ()
 
 AtrL = {};
 
-AtrL["SCAN_EXPLANATION"] = "Scanning the auction house builds a database of prices that Auctionator uses for two purposes: to display in item tooltips "
+AtrL["SCAN_EXPLANATION"] =  "<br/>"
+							.."Scanning the auction house builds a database of prices that Auctionator uses for two purposes: to display in item tooltips "
 							.."when you're away from the Auction House and to recommend a price when you're posting an item for which there are no other "
 							.."auctions at that moment."
 							.."<br/><br/>"
-							.."Scanning usually takes about 10 seconds but takes much longer the first time after a Warcraft patch.  "
-							.."Note that Blizzard only allows scanning once every 15 minutes."
+
+							..""
+							.."If normal scanning causes problems, you can try |cFFff5555slow scanning|r instead.  Just hold down the Control key before clicking "
+							.."the Start Scanning button."
 							.."<br/><br/>"
-							.."Finally, a warning: if you have a low-bandwidth connection, scanning may cause you to disconnect.";
-
-
+							
+							.."It is recomended you reload the interface (by typing /reload) after scan."
 
 AtrL["%d of %d bought so far"] = ""
 AtrL["Active Items"] = ""
@@ -21,7 +23,6 @@ AtrL["always"] = ""
 AtrL["Are you sure you want to create\nan auction with no buyout price?"] = ""
 AtrL["As many as possible"] = ""
 AtrL["Auction"] = ""
-AtrL["Auction median"] = ""
 AtrL["Auction #%d created for %s"] = ""
 AtrL["Auction cancelled for "] = ""
 AtrL["Auction created for %s"] = ""

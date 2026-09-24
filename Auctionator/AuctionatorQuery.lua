@@ -1,5 +1,10 @@
 -----------------------------------------
 
+local addonName, addonTable = ...; 
+local zc = addonTable.zc;
+local zz = zc.md;
+local _
+
 AtrQuery = {};
 AtrQuery.__index = AtrQuery;
 
@@ -21,7 +26,7 @@ end
 
 function AtrQuery:CheckForDuplicatePage (pagenum)
 
-	local numBatchAuctions = GetNumAuctionItems("list");
+	local numBatchAuctions = Atr_GetNumAuctionItems("list");
 
 	local thisPage		= {};
 	thisPage.numOnPage	= numBatchAuctions;
@@ -30,7 +35,7 @@ function AtrQuery:CheckForDuplicatePage (pagenum)
 
 
 	if (self.prevPage) then
---		zc.msg_atr ("Comparing page ", pagenum, " to pge ", self.prevPage.pagenum);
+--		zc.msg_anm ("Comparing page ", pagenum, " to pge ", self.prevPage.pagenum);
 	
 		if (self.prevPage.pagenum == pagenum) then
 			return false;
@@ -50,7 +55,8 @@ function AtrQuery:CheckForDuplicatePage (pagenum)
 	
 	for x = 1, numBatchAuctions do
 	
-		local name, texture, count, quality, canUse, level, minBid, minIncrement, buyoutPrice, bidAmount, highBidder, owner = GetAuctionItemInfo("list", x);
+		-- local name, texture, count, quality, canUse, level, huh, minBid, minIncrement, buyoutPrice, bidAmount, highBidder, bidderFullName, owner, ownerFullName = GetAuctionItemInfo("list", x);
+		local name, texture, count, quality, canUse, level, minBid, minIncrement, buyoutPrice, bidAmount, highBidder, owner, saleStatus  = GetAuctionItemInfo("list", x);
 
 		thisPage.items[x] = self:BuildItemIDstr (name, count, minBid, buyoutPrice, bidAmount);
 
@@ -70,24 +76,24 @@ function AtrQuery:CheckForDuplicatePage (pagenum)
 
 	if (prevPage ~= nil and prevPage.numOnPage ~= thisPage.numOnPage) then
 	
---		zc.msg_pink ("page is unique - numauctions didn't match");
+--		zz ("page is unique - numauctions didn't match");
 		dupPageFound = false;
 		
 	elseif (dupPageFound and allItemsIdentical) then
 	
---		zc.msg_red ("Dup page found but all items identical: thisPage.numOnPage: ", thisPage.numOnPage);
+--		zz ("Dup page found but all items identical: thisPage.numOnPage: ", thisPage.numOnPage);
 		dupPageFound = false;
 	
 	elseif (not dupPageFound) then
 	
---		zc.msg_pink ("page is unique");
+--		zz ("page is unique");
 	end
 	
 	
 	if (dupPageFound) then
 	
 		self.numDupPages = self.numDupPages + 1;
---		zc.msg_atr ("DUPLICATE PAGE FOUND: thisPage.numOnPage: ", thisPage.numOnPage, "  numDupItems: ", numDupItems);
+		zz ("DUPLICATE PAGE FOUND: thisPage.numOnPage: ", thisPage.numOnPage, "  numDupItems: ", numDupItems);
 	else
 		self.prevPage = thisPage;
 	end
@@ -100,7 +106,7 @@ end
 
 function AtrQuery:IsLastPage (pagenum)
 
-	local _, totalAuctions = GetNumAuctionItems("list");
+	local _, totalAuctions = Atr_GetNumAuctionItems("list");
 
 	return (((pagenum + 1) * 50) >= totalAuctions);
 end
