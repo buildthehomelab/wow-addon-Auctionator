@@ -28,6 +28,11 @@ local gAtr_Buy_Pass;
 local gAtr_NextMatchIndex;
 local gAtr_Buy_MatchList = {};
 
+-- Bulk buying: the popup stays open from one price to the next until Done,
+-- so these running totals carry over. skip holds prices that ran out.
+local gAtr_Buy_Session = nil;
+local gAtr_Buy_TierBought = 0;
+
 -----------------------------------------
 
 function Atr_Buy_Debug1 (...)
@@ -78,13 +83,56 @@ end
 
 -----------------------------------------
 
+local function Atr_Buy_TierKey (stackSize, buyoutPrice)
+	return stackSize.."_"..buyoutPrice;
+end
+
+-----------------------------------------
+
+local function Atr_Buy_SessionText ()
+
+	local s = gAtr_Buy_Session;
+	if (s == nil or s.stacks == 0) then
+		return nil;
+	end
+
+	local stacksWord = "stacks";
+	if (s.stacks == 1) then
+		stacksWord = "stack";
+	end
+
+	return s.stacks.." "..stacksWord.." ("..s.items.." items) for "..zc.priceToMoneyString (s.spent);
+end
+
+-----------------------------------------
+
+local function Atr_Buy_Show_Session ()
+
+	local text = Atr_Buy_SessionText ();
+
+	if (text) then
+		Atr_Buy_Session_Text:SetText ("Bought so far: "..text);
+		Atr_Buy_Confirm_CancelBut:SetText (ZT("Done"));
+	else
+		Atr_Buy_Session_Text:SetText ("");
+		Atr_Buy_Confirm_CancelBut:SetText (ZT("Cancel"));
+	end
+end
+
+-----------------------------------------
+
 local FocusTime;
-function Atr_Buy1_Onclick ()
+function Atr_Buy1_Onclick (continuing)
 
 	if (not Atr_IsSelectedTab_Current()) then
 		return;
 	end
 	
+	if (not continuing or gAtr_Buy_Session == nil) then
+		gAtr_Buy_Session = { stacks = 0, items = 0, spent = 0, skip = {} };
+	end
+	gAtr_Buy_TierBought = 0;
+
 	gAtr_Buy_Query			= Atr_NewQuery();
 	gAtr_Buy_NumUserWants	= -1;
 	gAtr_Buy_NumBought		= 0;
@@ -134,6 +182,7 @@ function Atr_Buy1_Onclick ()
 	--Atr_Buy_Confirm_OKBut:SetText (ZT("Buy One"))
 	Atr_Buy_Confirm_OKBut:Disable();
 	Atr_Buy_Confirm_CancelBut:SetText (ZT("Cancel"))
+	Atr_Buy_Show_Session ();
 	Atr_Buy_Confirm_Frame:Show();
 	Atr_Buy_Confirm_Numstacks:SetFocus();
 	FocusTime = time();
@@ -343,6 +392,13 @@ function Atr_Buy_CountMatches (andBuy)
 				
 				numBoughtThisPage  = numBoughtThisPage + 1;
 				gAtr_Buy_NumBought = gAtr_Buy_NumBought + 1;
+				gAtr_Buy_TierBought = gAtr_Buy_TierBought + 1;
+
+				if (gAtr_Buy_Session) then
+					gAtr_Buy_Session.stacks = gAtr_Buy_Session.stacks + 1;
+					gAtr_Buy_Session.items  = gAtr_Buy_Session.items + gAtr_Buy_StackSize;
+					gAtr_Buy_Session.spent  = gAtr_Buy_Session.spent + gAtr_Buy_BuyoutPrice;
+				end
 				Atr_Buy_Continue_Text:SetText (string.format (ZT("%d of %d bought so far"), gAtr_Buy_NumBought, gAtr_Buy_NumUserWants));
 			end
 		end
@@ -466,11 +522,59 @@ end
 
 -----------------------------------------
 
+-- When one price is finished, loads the next cheapest auction you can buy
+-- into the same popup. Returns false when there is nothing left to offer.
+
+function Atr_Buy_ContinueWithNextTier ()
+
+	local session = gAtr_Buy_Session;
+
+	if (session == nil or not Atr_Buy_Confirm_Frame:IsShown()) then
+		return false;
+	end
+
+	-- the auctions at this price ran out before the wanted amount was bought
+	if (gAtr_Buy_NumUserWants == -1 or gAtr_Buy_TierBought < gAtr_Buy_NumUserWants) then
+		session.skip[Atr_Buy_TierKey (gAtr_Buy_StackSize, gAtr_Buy_BuyoutPrice)] = true;
+	end
+
+	local currentPane = Atr_GetCurrentPane();
+	local scan = currentPane and currentPane.activeScan;
+
+	if (scan == nil or scan.sortedData == nil or not zc.StringSame (scan.itemName, gAtr_Buy_ItemName)) then
+		return false;
+	end
+
+	local n, data;
+	for n, data in ipairs (scan.sortedData) do
+		if (not data.yours and not data.altname and data.buyoutPrice > 0 and data.count > 0
+				and not session.skip[Atr_Buy_TierKey (data.stackSize, data.buyoutPrice)]) then
+			currentPane.currIndex = n;
+			currentPane.UINeedsUpdate = true;
+			Atr_Buy1_Onclick (true);
+			return true;
+		end
+	end
+
+	return false;
+end
+
+-----------------------------------------
+
 function Atr_Buy_NextPage_Or_Cancel ( queueIf )
 
 	if (Atr_Buy_IsComplete()) then
 		
-		Atr_Buy_Cancel();
+		if (Atr_Buy_ContinueWithNextTier ()) then
+			return;
+		end
+
+		local summary = Atr_Buy_SessionText ();
+		if (summary) then
+			summary = "No more auctions to buy.\n\nBought "..summary..".";
+		end
+
+		Atr_Buy_Cancel (summary);
 		
 		local currentPane = Atr_GetCurrentPane();
 
@@ -557,7 +661,8 @@ function Atr_Buy_Confirm_OK ()
 	local _, numJustBought = Atr_Buy_BuyMatches ();
 
 	if (numJustBought > 0) then	
-		AuctionatorSubtractFromScan (gAtr_Buy_ItemLink, gAtr_Buy_StackSize, gAtr_Buy_BuyoutPrice, gAtr_Buy_NumBought);
+		Atr_Buy_Show_Session ();
+		AuctionatorSubtractFromScan (gAtr_Buy_ItemLink, gAtr_Buy_StackSize, gAtr_Buy_BuyoutPrice, numJustBought);
 		gBuyState = ATR_BUY_JUST_BOUGHT;
 		gAtr_Buy_Waiting_Start = time();
 		Atr_Buy_Confirm_OKBut:Disable();
@@ -574,6 +679,7 @@ end
 function Atr_Buy_Cancel (msg)
 	
 	gBuyState = ATR_BUY_NULL;
+	gAtr_Buy_Session = nil;
 
 	Atr_Buy_Confirm_Frame:Hide();
 	
