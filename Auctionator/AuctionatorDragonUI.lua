@@ -46,6 +46,9 @@ local DIALOGS = {
 
 local SEARCH_BOXES = { BrowseName = true, Atr_Search_Box = true, Atr_AS_Searchtext = true }
 
+-- Auctionator's clickable column headings, which sit on the headings strip.
+local SORT_HEADINGS = { "Atr_Col1_Heading_Button", "Atr_Col3_Heading_Button", "Atr_Stat_Heading_Button" }
+
 local chrome, title
 local panes = {}
 
@@ -398,6 +401,20 @@ local function stripeRows ()
 	end
 end
 
+-- The headings bar already has its strip, so each heading only swaps the red character-tab glow
+-- for a faint wash and tints the sort arrow gold.
+local function skinSortHeading (btn)
+	local glow = btn:GetHighlightTexture()
+	if glow then
+		glow:SetTexture(1, 1, 1, 0.08)
+		glow:ClearAllPoints()
+		glow:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, -1)
+		glow:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 1)
+	end
+	local arrow = named(btn, "Arrow")
+	if arrow then arrow:SetVertexColor(1, 0.82, 0) end
+end
+
 local function skinAuctionatorPanel ()
 	-- The panes already frame these; their own borders would draw a box inside the box.
 	if Atr_Hlist then Atr_Hlist:SetBackdrop(nil) end
@@ -417,6 +434,18 @@ local function skinAuctionatorPanel ()
 		rule:SetHeight(1)
 		rule:SetPoint("BOTTOMLEFT", strip, "BOTTOMLEFT")
 		rule:SetPoint("BOTTOMRIGHT", strip, "BOTTOMRIGHT")
+	end
+
+	for _, name in ipairs(SORT_HEADINGS) do
+		if _G[name] then skinSortHeading(_G[name]) end
+	end
+
+	-- The stat heading takes the green of the +N totals on each row.
+	if Atr_Stat_Heading_Button then
+		local font = CreateFont("AtrDragonStatHeadingFont")
+		font:SetFontObject(GameFontHighlightSmall)
+		font:SetTextColor(0.12, 1, 0)
+		Atr_Stat_Heading_Button:SetNormalFontObject(font)
 	end
 end
 
