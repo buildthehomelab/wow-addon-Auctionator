@@ -794,6 +794,20 @@ end
 
 -----------------------------------------
 
+-- GetAuctionItemClasses() order
+local AUCTION_CLASS_WEAPON	= 1;
+local AUCTION_CLASS_ARMOR	= 2;
+local AUCTION_CLASS_GEM		= 10;
+
+local function Atr_AS_SetStat (dropdown, token)
+
+	Atr_Dropdown_Refresh (dropdown);
+	UIDropDownMenu_SetSelectedValue (dropdown, token or "");
+	UIDropDownMenu_SetText (dropdown, Atr_StatLabel (token) or "-------");
+end
+
+-----------------------------------------
+
 function Atr_Adv_Search_Onclick ()
 
 	Atr_Search_Box:ClearFocus()
@@ -803,7 +817,7 @@ function Atr_Adv_Search_Onclick ()
 	Atr_Adv_Search_Dialog:Show();
 
 	if (Atr_IsCompoundSearch (searchText)) then
-		local queryString, itemClass, itemSubclass, minLevel, maxLevel, minItemLevel, maxItemLevel, qualityIndex = Atr_ParseCompoundSearch (searchText);
+		local queryString, itemClass, itemSubclass, minLevel, maxLevel, minItemLevel, maxItemLevel, qualityIndex, requiredStats = Atr_ParseCompoundSearch (searchText);
 		
 		Atr_AS_Searchtext:SetText (queryString);
 		
@@ -825,6 +839,12 @@ function Atr_Adv_Search_Onclick ()
 		
 		Atr_AS_MinItemlevel:SetText (minItemLevel);
 		Atr_AS_MaxItemlevel:SetText (maxItemLevel);
+
+		if (Atr_ASDD_Stat1:IsShown()) then
+			requiredStats = requiredStats or {};
+			Atr_AS_SetStat (Atr_ASDD_Stat1, requiredStats[1]);
+			Atr_AS_SetStat (Atr_ASDD_Stat2, requiredStats[2]);
+		end
 
 	else
 		Atr_AS_Searchtext:SetText (searchText);
@@ -933,7 +953,7 @@ function Atr_ASDD_Subclass_Initialize (self)
 		end
 	end
 	
-	if (itemClass and (itemClass == WEAPON or itemClass == ARMOR)) then
+	if (itemClass and (itemClass == AUCTION_CLASS_WEAPON or itemClass == AUCTION_CLASS_ARMOR)) then
 		Atr_AS_ILevRange_Label:Show()
 		Atr_AS_ILevRange_Dash:Show()
 		Atr_AS_MinItemlevel:Show()
@@ -944,7 +964,38 @@ function Atr_ASDD_Subclass_Initialize (self)
 		Atr_AS_MinItemlevel:Hide()
 		Atr_AS_MaxItemlevel:Hide()
 	end
+
+	local hasStats = itemClass == AUCTION_CLASS_WEAPON or itemClass == AUCTION_CLASS_ARMOR or itemClass == AUCTION_CLASS_GEM;
+
+	if (hasStats and not Atr_ASDD_Stat1:IsShown()) then
+		Atr_AS_Stats_Label:Show()
+		Atr_AS_SetStat (Atr_ASDD_Stat1, nil)
+		Atr_AS_SetStat (Atr_ASDD_Stat2, nil)
+	elseif (not hasStats) then
+		Atr_AS_Stats_Label:Hide()
+		Atr_ASDD_Stat1:Hide()
+		Atr_ASDD_Stat2:Hide()
+	end
 	
+end
+
+-----------------------------------------
+
+function Atr_ASDD_Stat_OnShow (self)
+
+	UIDropDownMenu_Initialize		(self, Atr_ASDD_Stat_Initialize);
+	UIDropDownMenu_SetSelectedValue	(self, "");
+end
+
+-----------------------------------------
+
+function Atr_ASDD_Stat_Initialize (self)
+
+	Atr_Dropdown_AddPick (self, "-------", "");
+
+	for _, stat in ipairs(Atr_GetStatFilters()) do
+		Atr_Dropdown_AddPick (self, stat.label, stat.token);
+	end
 end
 
 
@@ -965,6 +1016,11 @@ function Atr_Adv_Search_Reset()
 	Atr_AS_Maxlevel:SetText ("");
 	Atr_AS_MinItemlevel:SetText ("");
 	Atr_AS_MaxItemlevel:SetText ("");
+
+	if (Atr_ASDD_Stat1:IsShown()) then
+		Atr_AS_SetStat (Atr_ASDD_Stat1, nil);
+		Atr_AS_SetStat (Atr_ASDD_Stat2, nil);
+	end
 end
 
 -----------------------------------------
@@ -1004,11 +1060,18 @@ function Atr_Adv_Search_Do()
 	if (minLevel > 0)		then	searchText = searchText.."/"..minLevel;				end
 	if (maxLevel > 0)		then	searchText = searchText.."/"..maxLevel;				end
 
-	if (itemClass and (itemClass == WEAPON or itemClass == ARMOR)) then
+	if (itemClass and (itemClass == AUCTION_CLASS_WEAPON or itemClass == AUCTION_CLASS_ARMOR)) then
 		local minItemLevel	= Atr_AS_MinItemlevel:GetNumber()
 		local maxItemLevel	= Atr_AS_MaxItemlevel:GetNumber()
 		if (minItemLevel > 0)	then	searchText = searchText.."/i"..minItemLevel;		end
 		if (maxItemLevel > 0)	then	searchText = searchText.."/i"..maxItemLevel;		end
+	end
+
+	if (Atr_ASDD_Stat1:IsShown()) then
+		local stat1 = UIDropDownMenu_GetSelectedValue (Atr_ASDD_Stat1)
+		local stat2 = UIDropDownMenu_GetSelectedValue (Atr_ASDD_Stat2)
+		if (stat1 and stat1 ~= "")						then	searchText = searchText.."/+"..stat1;		end
+		if (stat2 and stat2 ~= "" and stat2 ~= stat1)	then	searchText = searchText.."/+"..stat2;		end
 	end
 	
 	if (text ~= "")			then	searchText = searchText.."/"..text;					end

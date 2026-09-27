@@ -95,7 +95,7 @@ function AtrSearch:Init (searchText, IDstring, itemLink, rescanThreshold)
 	self.shplist			= Atr_GetShoppingListFromSearchText (self.searchText)
 
 	if (Atr_IsCompoundSearch(self.searchText)) then
-		_, _, _, _, _, self.minItemLevel, self.maxItemLevel = Atr_ParseCompoundSearch (self.searchText);
+		_, _, _, _, _, self.minItemLevel, self.maxItemLevel, _, self.requiredStats = Atr_ParseCompoundSearch (self.searchText);
 	end
 	
 	if (IDstring) then	
@@ -455,6 +455,10 @@ function AtrSearch:AnalyzeResultsPage()
 					end
 				end
 				
+				if (OKitemLevel and self.requiredStats) then
+					OKitemLevel = Atr_ItemHasStats (itemLink, self.requiredStats)
+				end
+
 				if (OKitemLevel) then
 					if (owner == nil) then
 						numNilOwners = numNilOwners + 1
@@ -629,6 +633,7 @@ function Atr_ParseCompoundSearch (searchString)
 	local maxLevel		= nil;
 	local minItemLevel	= nil;
 	local maxItemLevel	= nil;
+	local requiredStats	= nil;
 	local prevWasItemClass;
 	local qualityIndex;
 	local n;
@@ -664,6 +669,14 @@ function Atr_ParseCompoundSearch (searchString)
 			prevWasItemClass = false;
 		end
 		
+		if (not handled and Atr_StatFromSearchPart(s)) then
+			requiredStats = requiredStats or {};
+			table.insert (requiredStats, Atr_StatFromSearchPart(s));
+
+			handled = true;
+			prevWasItemClass = false;
+		end
+
 		if (not handled and prevWasItemClass and itemSubclass == 0) then
 			itemSubclass = Atr_SubType2AuctionSubclass (itemClass, s);
 			if (itemSubclass > 0) then
@@ -689,7 +702,7 @@ function Atr_ParseCompoundSearch (searchString)
 	end	
 
 	--QueryAuctionItems("name", minLevel, maxLevel, invTypeIndex, classIndex, subclassIndex, page, isUsable, qualityIndex, getAll)
-	return queryString, itemClass, itemSubclass, minLevel, maxLevel, minItemLevel, maxItemLevel, qualityIndex
+	return queryString, itemClass, itemSubclass, minLevel, maxLevel, minItemLevel, maxItemLevel, qualityIndex, requiredStats
 end
 
 -----------------------------------------

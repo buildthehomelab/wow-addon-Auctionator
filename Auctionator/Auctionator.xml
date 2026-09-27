@@ -1404,7 +1404,7 @@
    <!-- Buy Confirmation screen --> 
 
 	<Frame name="Atr_Adv_Search_Dialog" inherits="AuctionatorDialog" toplevel="true" parent="UIParent" frameStrata="FULLSCREEN_DIALOG" enableMouse="true" hidden="true">
-		<Size><AbsDimension x="480" y="320" /></Size>		
+		<Size><AbsDimension x="480" y="385" /></Size>		
 		<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="270" y="-160"/></Offset></Anchor></Anchors>
 
 		<Layers>
@@ -1449,6 +1449,10 @@
 				
 				<FontString name="Atr_AS_ILevRange_Dash" inherits="GameFontHighlightLarge" text="-" hidden="true">
 					<Anchors><Anchor point="TOPLEFT" relativeTo="Atr_AS_ILevRange_Label" relativePoint="BOTTOMLEFT"><Offset><AbsDimension x="41" y="-6"/></Offset></Anchor></Anchors>
+				</FontString>
+
+				<FontString name="Atr_AS_Stats_Label" inherits="GameFontNormalSmall" text="Must Have Stats" hidden="true">
+					<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="40" y="-255"/></Offset></Anchor></Anchors>
 				</FontString>
 				
 			</Layer>
@@ -1506,6 +1510,20 @@
 				<Anchors><Anchor point="TOPLEFT" relativeTo="Atr_AS_ILevRange_Label" relativePoint="BOTTOMLEFT"><Offset><AbsDimension x="59" y="-4"/></Offset></Anchor></Anchors>
 				<FontString inherits="ChatFontNormal" bytes="64" justifyH="CENTER" />
 			</EditBox>
+
+			<Frame name="Atr_ASDD_Stat1" inherits="UIDropDownMenuTemplate" hidden="true">
+				<Anchors><Anchor point="TOPLEFT" relativeTo="Atr_AS_Stats_Label" relativePoint="BOTTOMLEFT"><Offset><AbsDimension x="-20" y="-4"/></Offset></Anchor></Anchors>
+				<Scripts>
+					<OnShow function="Atr_ASDD_Stat_OnShow"/>
+				</Scripts>
+			</Frame>
+
+			<Frame name="Atr_ASDD_Stat2" inherits="UIDropDownMenuTemplate" hidden="true">
+				<Anchors><Anchor point="TOPLEFT" relativeTo="Atr_AS_Stats_Label" relativePoint="BOTTOMLEFT"><Offset><AbsDimension x="180" y="-4"/></Offset></Anchor></Anchors>
+				<Scripts>
+					<OnShow function="Atr_ASDD_Stat_OnShow"/>
+				</Scripts>
+			</Frame>
 
 			<Button name="Atr_Adv_Search_ResetBut" inherits="Atr_SmallButtonTemplate" text="RESET">
 				<Size><AbsDimension x="60" y="18"/></Size>

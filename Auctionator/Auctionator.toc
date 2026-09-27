@@ -29,6 +29,7 @@ AuctionatorLocalize.lua
 AuctionatorPane.lua
 AuctionatorDatabase.lua
 AuctionatorScan.lua
+AuctionatorStats.lua
 AuctionatorScanFull.lua
 AuctionatorQuery.lua
 AuctionatorHints.lua
