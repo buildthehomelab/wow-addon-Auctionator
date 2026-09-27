@@ -978,6 +978,12 @@
 						<Scripts><OnClick>Atr_Onclick_Col3()</OnClick></Scripts>
 					</Button>
 
+					<Button name="Atr_Stat_Heading_Button" text="Stats" inherits="Atr_Col_Heading_Template"  hidden="true">
+						<Size><AbsDimension x="140" y="20"/></Size>
+						<Anchors><Anchor point="TOPLEFT"><Offset><AbsDimension x="340" y="-21"/></Offset></Anchor></Anchors>
+						<Scripts><OnClick>Atr_Onclick_StatCol()</OnClick></Scripts>
+					</Button>
+
 				</Frames>
 			</Frame>
 

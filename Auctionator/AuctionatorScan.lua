@@ -25,6 +25,8 @@ local ATR_SORTBY_NAME_ASC = 0;
 local ATR_SORTBY_NAME_DES = 1;
 local ATR_SORTBY_PRICE_ASC = 2;
 local ATR_SORTBY_PRICE_DES = 3;
+local ATR_SORTBY_STAT_ASC = 4;
+local ATR_SORTBY_STAT_DES = 5;
 
 gScanHistDayZero = time({year=2010, month=11, day=15, hour=0});		-- never ever change
 
@@ -297,6 +299,10 @@ function AtrSearch:Start ()
 		end
 
 		self.sortHow = ATR_SORTBY_PRICE_ASC;
+
+		if (self.requiredStats) then
+			self.sortHow = ATR_SORTBY_STAT_DES;
+		end
 	end
 
 	-- make sure all the matches in the scan db are in memory
@@ -799,6 +805,15 @@ local function Atr_SortScans (x, y)
 	if (gSortScansBy == ATR_SORTBY_PRICE_ASC) then		return xprice < yprice;		end
 	if (gSortScansBy == ATR_SORTBY_PRICE_DES) then		return xprice > yprice;		end
 
+	-- by stat, cheapest first among equals; unpriced last
+	if (x.statTotal ~= y.statTotal) then
+		if (gSortScansBy == ATR_SORTBY_STAT_ASC) then	return x.statTotal < y.statTotal;	end
+		if (gSortScansBy == ATR_SORTBY_STAT_DES) then	return x.statTotal > y.statTotal;	end
+	end
+
+	if (xprice == 0 or yprice == 0) then				return xprice > yprice;		end
+	return xprice < yprice;
+
 end
 
 -----------------------------------------
@@ -890,6 +905,7 @@ function AtrSearch:Finish()
 		
 		scn.whenScanned		= finishTime;
 		scn.searchText		= self.searchText;
+		scn.statTotal		= self.requiredStats and Atr_ItemStatTotal (scn.itemLink, self.requiredStats) or 0;
 
 		scn:CondenseAndSort ();
 
@@ -944,6 +960,20 @@ end
 
 -----------------------------------------
 
+function AtrSearch:ClickStatCol()
+
+	if (self.sortHow == ATR_SORTBY_STAT_DES) then
+		self.sortHow = ATR_SORTBY_STAT_ASC;
+	else
+		self.sortHow = ATR_SORTBY_STAT_DES;
+	end
+
+	gSortScansBy = self.sortHow;
+	table.sort (self.sortedScans, Atr_SortScans);
+end
+
+-----------------------------------------
+
 function AtrSearch:ClickNameCol()
 
 	if (self.sortHow == ATR_SORTBY_NAME_ASC) then
@@ -962,6 +992,7 @@ function AtrSearch:UpdateArrows()
 
 	Atr_Col1_Heading_ButtonArrow:Hide();
 	Atr_Col3_Heading_ButtonArrow:Hide();
+	Atr_Stat_Heading_ButtonArrow:Hide();
 	
 	if (self.sortHow == ATR_SORTBY_PRICE_ASC) then
 		Atr_Col1_Heading_ButtonArrow:Show();
@@ -975,6 +1006,12 @@ function AtrSearch:UpdateArrows()
 	elseif (self.sortHow == ATR_SORTBY_NAME_DES) then
 		Atr_Col3_Heading_ButtonArrow:Show();
 		Atr_Col3_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 0, 1.0);
+	elseif (self.sortHow == ATR_SORTBY_STAT_ASC) then
+		Atr_Stat_Heading_ButtonArrow:Show();
+		Atr_Stat_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 1.0, 0);
+	elseif (self.sortHow == ATR_SORTBY_STAT_DES) then
+		Atr_Stat_Heading_ButtonArrow:Show();
+		Atr_Stat_Heading_ButtonArrow:SetTexCoord(0, 0.5625, 0, 1.0);
 	end
 end
 

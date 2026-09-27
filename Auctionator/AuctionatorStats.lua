@@ -3,25 +3,25 @@
 -- so random suffixes ("of the Monkey") and gems count too.  enUS text only.
 
 local STATS = {
-	{ token = "str",    label = "Strength",          find = { "strength" } },
-	{ token = "agi",    label = "Agility",           find = { "agility" } },
-	{ token = "sta",    label = "Stamina",           find = { "stamina" } },
-	{ token = "int",    label = "Intellect",         find = { "intellect" } },
-	{ token = "spi",    label = "Spirit",            find = { "spirit" } },
-	{ token = "ap",     label = "Attack Power",      find = { "attack power" } },
-	{ token = "sp",     label = "Spell Power",       find = { "spell power" } },
-	{ token = "crit",   label = "Crit Rating",       find = { "critical strike rating" } },
-	{ token = "hit",    label = "Hit Rating",        find = { "hit rating" } },
-	{ token = "haste",  label = "Haste Rating",      find = { "haste rating" } },
-	{ token = "exp",    label = "Expertise",         find = { "expertise rating" } },
-	{ token = "arp",    label = "Armor Pen",         find = { "armor penetration rating" } },
-	{ token = "def",    label = "Defense",           find = { "defense rating" } },
-	{ token = "dodge",  label = "Dodge",             find = { "dodge rating" } },
-	{ token = "parry",  label = "Parry",             find = { "parry rating" } },
-	{ token = "block",  label = "Block",             find = { "block rating", "block value" } },
-	{ token = "resil",  label = "Resilience",        find = { "resilience rating" } },
-	{ token = "mp5",    label = "Mana per 5",        find = { "mana per 5", "mana every 5" } },
-	{ token = "spen",   label = "Spell Pen",         find = { "spell penetration" } },
+	{ token = "str",    short = "Str",   label = "Strength",          find = { "strength" } },
+	{ token = "agi",    short = "Agi",   label = "Agility",           find = { "agility" } },
+	{ token = "sta",    short = "Sta",   label = "Stamina",           find = { "stamina" } },
+	{ token = "int",    short = "Int",   label = "Intellect",         find = { "intellect" } },
+	{ token = "spi",    short = "Spi",   label = "Spirit",            find = { "spirit" } },
+	{ token = "ap",     short = "AP",    label = "Attack Power",      find = { "attack power" } },
+	{ token = "sp",     short = "SP",    label = "Spell Power",       find = { "spell power" } },
+	{ token = "crit",   short = "Crit",  label = "Crit Rating",       find = { "critical strike rating" } },
+	{ token = "hit",    short = "Hit",   label = "Hit Rating",        find = { "hit rating" } },
+	{ token = "haste",  short = "Haste", label = "Haste Rating",      find = { "haste rating" } },
+	{ token = "exp",    short = "Exp",   label = "Expertise",         find = { "expertise rating" } },
+	{ token = "arp",    short = "ArP",   label = "Armor Pen",         find = { "armor penetration rating" } },
+	{ token = "def",    short = "Def",   label = "Defense",           find = { "defense rating" } },
+	{ token = "dodge",  short = "Dodge", label = "Dodge",             find = { "dodge rating" } },
+	{ token = "parry",  short = "Parry", label = "Parry",             find = { "parry rating" } },
+	{ token = "block",  short = "Block", label = "Block",             find = { "block rating", "block value" } },
+	{ token = "resil",  short = "Resil", label = "Resilience",        find = { "resilience rating" } },
+	{ token = "mp5",    short = "MP5",   label = "Mana per 5",        find = { "mana per 5", "mana every 5" } },
+	{ token = "spen",   short = "SPen",  label = "Spell Pen",         find = { "spell penetration" } },
 }
 
 -- lines that mention a stat without the item having it
@@ -47,6 +47,18 @@ end
 
 -----------------------------------------
 
+function Atr_StatsHeading (tokens)		-- "Agi+Crit"
+
+	local parts = {}
+	for _, token in ipairs(tokens) do
+		table.insert (parts, byToken[token].short)
+	end
+
+	return table.concat (parts, "+")
+end
+
+-----------------------------------------
+
 function Atr_StatFromSearchPart (s)		-- returns "agi" for "+agi", nil if not a stat part
 
 	if (string.len(s) > 1 and string.sub(s,1,1) == "+") then
@@ -62,7 +74,15 @@ end
 -----------------------------------------
 
 local scanTip
-local tipStats = {}		-- itemLink -> { token = true }
+local tipStats = {}		-- itemLink -> { token = amount }
+
+local function amountNear (line, first, last)		-- "+12 agility", "rating by 14"
+
+	local amount = string.match (string.sub (line, 1, first-1), "(%d+)%s*$")
+				or string.match (string.sub (line, last+1), "^%D-(%d+)")
+
+	return tonumber (amount) or 0
+end
 
 local function statsOnTooltip (itemLink)
 
@@ -99,8 +119,9 @@ local function statsOnTooltip (itemLink)
 			if (not skip) then
 				for _, stat in ipairs(STATS) do
 					for _, text in ipairs(stat.find) do
-						if (string.find (line, text, 1, true)) then
-							found[stat.token] = true
+						local first, last = string.find (line, text, 1, true)
+						if (first) then
+							found[stat.token] = (found[stat.token] or 0) + amountNear (line, first, last)
 							numFound = numFound + 1
 						end
 					end
@@ -136,4 +157,22 @@ function Atr_ItemHasStats (itemLink, tokens)
 	end
 
 	return true
+end
+
+-----------------------------------------
+
+function Atr_ItemStatTotal (itemLink, tokens)
+
+	if (itemLink == nil) then
+		return 0
+	end
+
+	local found = statsOnTooltip (itemLink)
+	local total = 0
+
+	for _, token in ipairs(tokens) do
+		total = total + (found[token] or 0)
+	end
+
+	return total
 end
