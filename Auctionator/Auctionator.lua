@@ -2166,6 +2166,7 @@ function Atr_ClearList ()
 
 	Atr_Col1_Heading_Button:Hide();
 	Atr_Col3_Heading_Button:Hide();
+	Atr_Stat_Heading_Button:Hide();
 
 	local line;							-- 1 through 12 of our window to scroll
 
@@ -3682,6 +3683,17 @@ end
 
 -----------------------------------------
 
+function Atr_Onclick_StatCol ()
+
+	if (gCurrentPane.activeSearch) then
+		gCurrentPane.activeSearch:ClickStatCol();
+		gCurrentPane.UINeedsUpdate = true;
+	end
+
+end
+
+-----------------------------------------
+
 function Atr_Onclick_Col3 ()
 
 	if (gCurrentPane.activeSearch) then
@@ -3700,6 +3712,15 @@ function Atr_ShowSearchSummary()
 	Atr_Col1_Heading_Button:Show();
 	Atr_Col3_Heading_Button:Show();
 	Atr_Col4_Heading:Show();
+
+	local requiredStats = gCurrentPane.activeSearch.requiredStats;
+
+	if (requiredStats) then
+		Atr_Stat_Heading_Button:SetText (Atr_StatsHeading (requiredStats));
+		Atr_Stat_Heading_Button:Show();
+	else
+		Atr_Stat_Heading_Button:Hide();
+	end
 
 	gCurrentPane.activeSearch:UpdateArrows ();
 
@@ -3777,6 +3798,10 @@ function Atr_ShowSearchSummary()
 					iLevelStr = " ("..scn.itemLevel..")"
 				end
 				
+				if (requiredStats and scn.statTotal and scn.statTotal > 0) then
+					iLevelStr = iLevelStr.."  |cff1eff00+"..scn.statTotal.."|r"
+				end
+
 				lineEntry_text:SetText (icon.."  "..scn.itemName..iLevelStr)
 				lineEntry_stack:SetText (scn:GetNumAvailable().." "..ZT("available"))
 			end
@@ -3818,6 +3843,7 @@ function Atr_ShowCurrentAuctions()
 	Atr_Col4_Heading:Hide()
 	Atr_Col1_Heading_Button:Hide()
 	Atr_Col3_Heading_Button:Hide()
+	Atr_Stat_Heading_Button:Hide()
 	
 	local scn = gCurrentPane.activeScan
 	if (scn == nil) then
