@@ -1,6 +1,10 @@
 -- Dragonflight look for the auction house, borrowed from DragonUI when it is loaded.
 -- Without DragonUI (or one too old to carry these helpers) this file does nothing.
 
+-- DragonUI's nine-slice helper: DragonUI_NineSlice since DragonUI's 2026 rewrite, NineSliceUtils
+-- before it.
+local NineSliceUtils = _G.DragonUI_NineSlice or _G.NineSliceUtils
+
 local D = _G.DragonUI
 local CP = D and D.CharacterPanel
 
